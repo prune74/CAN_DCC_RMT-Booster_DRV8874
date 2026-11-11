@@ -3,28 +3,6 @@
 #include <string.h> // memcpy
 
 // ============================================================
-// Implémentation BoosterCanConfig
-// ============================================================
-
-BoosterCanConfig::BoosterCanConfig()
-    : cfg(true,                       // enabled
-          CFG_CAN_BITRATE,            // 500 kbit/s — identique au convertisseur
-          (gpio_num_t)CFG_CAN_TX_PIN, // TWAI natif (GPIO 5)
-          (gpio_num_t)CFG_CAN_RX_PIN, // TWAI natif (GPIO 4)
-          GPIO_NUM_NC, GPIO_NUM_NC, GPIO_NUM_NC, GPIO_NUM_NC, GPIO_NUM_NC,
-          0,                          // quartz MCP2515 inutilisé
-          false)                      // loopback matériel (true = tests isolés)
-{}
-
-uint8_t BoosterCanConfig::busCount() const {
-    return 1;
-}
-
-const CanBusConfig &BoosterCanConfig::bus(uint8_t) const {
-    return cfg;
-}
-
-// ============================================================
 // Implémentation CanBooster
 // ============================================================
 
