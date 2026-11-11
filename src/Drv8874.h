@@ -17,12 +17,13 @@ public:
     void cutoutEnd();                    // rebranche le RMT (biphasé)
     void enableOutput();                 // rebranche le RMT si nécessaire
     void disableOutput();                // coast = Hi-Z (failsafe, FAULT)
-    bool isEnabled() const;             // true si sortie active (non coast/brake)
+    bool isEnabled() const;              // true si sortie active (non coast/brake)
     bool isBrake() const { return braking; }
 
-    // IPROPI : I = V(ipropi) / (RIPROPI * 450 µA/A)  -- datasheet SLVSF66A eq.1
+    // IPROPI : I = V / (R_IPROPI * AIPROPI)  -- datasheet SLVSF66A eq.1/2
     uint16_t readCurrent_mA();
-    uint16_t readVoltage_mV();           // Lecture tension voie via pont diviseur
+    // Tension voie via pont diviseur R1/R2
+    uint16_t readVoltage_mV();
 
 private:
     void coast();

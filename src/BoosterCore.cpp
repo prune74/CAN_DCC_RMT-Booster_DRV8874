@@ -6,8 +6,14 @@ void BoosterCore::begin()
     drv.begin();
     railcom.begin();
     canRx.begin();
-    tensionControl.begin(); // Initialise le digipot
+    tensionControl.begin(); // Initialise le digipot (profil par défaut)
     telemetry.state = BoosterState::OFF;
+}
+
+void BoosterCore::shutdown(BoosterState state)
+{
+    drv.disableOutput();     // coast = Hi-Z
+    telemetry.state = state;
 }
 
 // Gestion du profil de tension (HO/N)
@@ -23,37 +29,46 @@ void BoosterCore::onCanMessage(uint16_t id, const uint8_t *data, uint8_t len)
 
 void BoosterCore::update()
 {
-    const uint32_t now = millis();
-
     // --- 1. Failsafe : DCC perdu → coupe immédiate ---
     if (!canRx.dccAlive())
     {
         if (drv.isEnabled())
         {
-            drv.disableOutput();
-            telemetry.state = BoosterState::OFF;
+            shutdown(BoosterState::OFF);
             // TODO : trame d'événement immédiate (hors télémétrie 1 s)
         }
         return;
     }
 
-    // --- 2. Sécurité (surintensité / sous-tension) ---
+    // --- 1b. Protection globale : un autre booster en défaut → coupe ---
+    if (CFG_ENABLE_GLOBAL_PROTECTION && canRx.otherBoosterFault())
+    {
+        if (drv.isEnabled())
+            shutdown(BoosterState::OFF);
+        return;
+    }
+
+    // --- 2. Sécurité locale (surintensité / sous-tension) ---
     telemetry.current_mA = drv.readCurrent_mA();
     telemetry.voltage_mV = drv.readVoltage_mV();
     if (telemetry.current_mA > CFG_MAX_CURRENT_MA ||
         telemetry.voltage_mV < CFG_MIN_VOLTAGE_MV)
     {
-        drv.disableOutput();
-        telemetry.state = BoosterState::FAULT;
+        shutdown(BoosterState::FAULT);
         return;
     }
 
-    // --- 3. Cutout RailCom (0x101) : EN=0 + capture HF 454 µs ---
-    if (canRx.popCutout() && telemetry.state != BoosterState::FAULT)
+    // --- 3. Cutout RailCom (0x101) : BRAKE + capture UART ~488 µs ---
+    bool global = false;
+    if (canRx.popCutout(global) && telemetry.state != BoosterState::FAULT)
     {
-        drv.cutoutStart();                                         // BRAKE : rails communs
-        telemetry.railcomAddress = railcom.capture(CFG_CUTOUT_US); // UART pendant ~488 µs
-        drv.cutoutEnd();                                           // rebranchement RMT
+        // Option GLOBAL_CUTOUT : honorer/ignorer le cutout global
+        if (CFG_ENABLE_GLOBAL_CUTOUT || !global)
+        {
+            drv.cutoutStart();                                         // BRAKE : rails communs
+            telemetry.railcomAddress = railcom.capture(CFG_CUTOUT_US);  // UART pendant ~488 µs
+            drv.cutoutEnd();                                           // rebranchement RMT
+        }
     }
 
     // --- 4. Flux DCC : FIFO → RMT, par paquets de 32 bits ---
@@ -68,6 +83,7 @@ void BoosterCore::update()
     {
         if (!drv.isEnabled())
             drv.enableOutput();
+
         if (regen.emit(bits, n) == 0)
         {
             // Ring buffer plein : on retentera au prochain update()
@@ -75,7 +91,6 @@ void BoosterCore::update()
         }
         if (telemetry.state != BoosterState::FAULT)
             telemetry.state = BoosterState::OK;
-        lastDccMs = now;
     }
 }
 

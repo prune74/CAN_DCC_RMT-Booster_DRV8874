@@ -8,7 +8,7 @@ void Drv8874::begin() {
     pinMode(PIN_DRV_NSLEEP, OUTPUT);
     digitalWrite(PIN_DRV_NSLEEP, HIGH);   // lève nSLEEP : PMODE (PWM) est latché ici
     pinMode(PIN_DRV_IN1, OUTPUT);         // GPIO 32
-    pinMode(PIN_DRV_IN2, OUTPUT);         // GPIO 33
+    pinMode(PIN_DRV_IN2, OUTPUT);          // GPIO 33
     coast();                              // IN1=IN2=0 -> Hi-Z jusqu'à connectDcc
 }
 
@@ -37,7 +37,6 @@ void Drv8874::cutoutEnd() {
 }
 
 void Drv8874::enableOutput() {
-    // Le BoosterCore appelle connectDcc() après DccRegen::begin().
     if (!connected && ch != RMT_CHANNEL_MAX) connectDcc(ch);
 }
 
@@ -56,14 +55,18 @@ bool Drv8874::isEnabled() const {
     return connected && !braking;
 }
 
+// IPROPI (µA) = I_out (A) * AIPROPI (µA/A) ; V = IPROPI * R_IPROPI
+// => I(mA) = V(mV) * 1 000 000 / (R_IPROPI * AIPROPI)  [gain en µA/A]
+// Vérif : 2 A -> 3 276 mV -> 3 276e6 / (3600*455) = 2000 mA
 uint16_t Drv8874::readCurrent_mA() {
-    // IPROPI (µA) = (ILS1 + ILS2)(A) * 450 ; V = IPROPI * RIPROPI
-    // => I(mA) = V_mesuré(mV) * 1000 / (RIPROPI_ohms * 0.45)
-    uint32_t mv = analogReadMilliVolts(PIN_DRV_IPROPI);
-    uint32_t ma = (mv * 1000UL) / ((uint32_t)CFG_RIPROPI_OHMS * 450UL / 1000UL);
+    const uint32_t mv = analogReadMilliVolts(PIN_DRV_IPROPI);
+    const uint32_t ma = (mv * 1000000UL) /
+                        ((uint32_t)CFG_RIPROPI_OHMS * (uint32_t)CFG_IPROPI_GAIN_UA_PER_A);
     return (uint16_t)(ma > 65000 ? 65000 : ma);
 }
 
+// Vrail = Vadc * (R1 + R2) / R2  (pont 68 k / 10 k = x7,8)
 uint16_t Drv8874::readVoltage_mV() {
-    return analogReadMilliVolts(PIN_VRAIL);
+    const uint32_t mv = analogReadMilliVolts(PIN_VRAIL);
+    return (uint16_t)(mv * (CFG_VRAIL_R1_OHMS + CFG_VRAIL_R2_OHMS) / CFG_VRAIL_R2_OHMS);
 }
