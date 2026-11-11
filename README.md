@@ -34,7 +34,6 @@ Ce booster **réceptionne les trames CAN** émises par le **convertisseur DCC_CA
 | **CAN TX** | 5 | TWAI natif (bus CAN) | `PIN_CAN_TX` |
 | **CAN RX** | 4 | TWAI natif (bus CAN) | `PIN_CAN_RX` |
 | **DCC PH** | 32 | Signal DCC (RMT) → PH du DRV8874 | `PIN_DCC_PH` |
-| **DRV EN** | 33 | Autorisation sortie (0 = coast/arrêt) | `PIN_DRV_EN` |
 | **DRV NSLEEP** | 27 | Veille du driver (1 = actif) | `PIN_DRV_NSLEEP` |
 | **IPROPI** | 34 | ADC - Mesure du courant voie | `PIN_IPROPI` |
 | **VRAIL** | 35 | ADC - Mesure de la tension voie | `PIN_VRAIL` |
@@ -77,7 +76,6 @@ static const int PIN_CAN_RX = 4;
 
 // --- DRV8874 ---
 static const int PIN_DCC_PH = 32;
-static const int PIN_DRV_EN = 33;
 static const int PIN_DRV_NSLEEP = 27;
 static const int PIN_IPROPI = 34;
 static const int PIN_VRAIL = 35;

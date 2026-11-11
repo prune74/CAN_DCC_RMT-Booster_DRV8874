@@ -15,14 +15,17 @@ static const uint8_t  CFG_BOOSTER_TYPE = 1;     // TYPE B = booster (nommage ID_
 // --- Bus CAN (identique au convertisseur) ---
 static const uint32_t CFG_CAN_BITRATE = 500000; // 500 kbit/s
 
-// --- RailCom HF ---
-static const uint16_t CFG_RAILCOM_ADC_ZERO = 2048; // Zéro HF à calibrer (12 bits)
-
 // --- Sécurité ---
 static const uint32_t CFG_FAILSAFE_MS   = 500;  // Pas de bloc 0x100 depuis 500 ms → OFF
 static const uint16_t CFG_MAX_CURRENT_MA = 2000; // Seuil coupure (à calibrer avec RIPROPI)
 static const uint16_t CFG_MIN_VOLTAGE_MV = 9000; // Sous-tension → FAULT
-static const uint32_t CFG_CUTOUT_US     = 454;  // Cutout nominal régénéré (RailCom)
+static constexpr uint16_t CFG_RIPROPI_OHMS = 10; // Résistance IPROPI (à calibrer)
+
+// --- Cutout RailCom régénéré ---
+// Calé sur la centrale LaBox (Locoduino) : TCS = 29 µs (cutout start)
+// + TCE = 459 µs, total ~488 µs (max NMRA S-9.3.2). 454 µs resterait
+// conforme, mais 488 garantit un cutout identique à l'amont.
+static const uint32_t CFG_CUTOUT_US = 488;
 
 // --- LED d'état ---
 static const uint8_t CFG_WS2812_BRIGHTNESS = 40; // Luminosité (0-255)

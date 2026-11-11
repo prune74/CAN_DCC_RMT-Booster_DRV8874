@@ -1,30 +1,32 @@
 #pragma once
-#include <Arduino.h>
-#include "Pins.h"
 #include "Config.h"
+#include "Pins.h"
+#include <Arduino.h>
+#include "driver/gpio.h"
+#include "driver/rmt.h"
 
-// ============================================================
-// Drv8874 — matériel du booster (interface PH/EN)
-//
-//  PMODE = 0 (PH/EN) :
-//    EN=1, PH=1 → OUT1=H, OUT2=L     EN=1, PH=0 → OUT1=L, OUT2=H
-//    → le biphasé DCC est fait par PH seul (une seule sortie RMT).
-//    EN=0 → sorties en haute impédance (coast) = arrêt d'urgence.
-//
-//  Cutout RailCom : EN=0 pendant 454 µs (nominal), PH inchangé.
-//  Pendant la fenêtre, le module RailCom capture l'ADC en DMA I2S
-//  (2 MHz) et décode CH1/CH2 — cf. src/RailCom.h.
-// ============================================================
-
+// DRV8874 en mode PWM (PMODE strapé à 3,3 V) :
+//   IN1 = DCC RMT (canal 5), IN2 = même signal INVERSÉ via la matrice GPIO.
+//   Cutout  : IN1=IN2=1 -> BRAKE (rails au potentiel commun, basse impédance).
+//   Failsafe/défaut : IN1=IN2=0 -> COAST (sorties Hi-Z).
 class Drv8874 {
 public:
     void begin();
-    void enableOutput();
-    void disableOutput();
-    bool isEnabled() const;
+    void connectDcc(rmt_channel_t ch);   // RMT -> IN1, RMT inversé -> IN2
+    void cutoutStart();                  // les deux IN à 1 = BRAKE
+    void cutoutEnd();                    // rebranche le RMT (biphasé)
+    void enableOutput();                 // rebranche le RMT si nécessaire
+    void disableOutput();                // coast = Hi-Z (failsafe, FAULT)
+    bool isEnabled() const;             // true si sortie active (non coast/brake)
+    bool isBrake() const { return braking; }
+
+    // IPROPI : I = V(ipropi) / (RIPROPI * 450 µA/A)  -- datasheet SLVSF66A eq.1
     uint16_t readCurrent_mA();
-    uint16_t readVoltage_mV();
+    uint16_t readVoltage_mV();           // Lecture tension voie via pont diviseur
 
 private:
-    bool enabled = false;
+    void coast();
+    bool connected = false;
+    bool braking = false;
+    rmt_channel_t ch = RMT_CHANNEL_MAX;
 };

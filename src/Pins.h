@@ -13,17 +13,15 @@ static const int PIN_CAN_TX = 5;     // TWAI natif
 static const int PIN_CAN_RX = 4;     // TWAI natif
 
 // --- DRV8874 ---
-static const int PIN_DCC_PH = 32;    // Signal DCC (RMT) → PH (PMODE = 0)
-static const int PIN_DRV_EN = 33;    // Autorisation sortie (0 = coast/arrêt)
+static const int PIN_DCC_PH = 32;    // Signal DCC PH (RMT) → IN1 du DRV8874
+static const int PIN_DRV_IN1 = 32;  //
+static const int PIN_DRV_IN2 = 33;  //
 static const int PIN_DRV_NSLEEP = 27; // Veille driver (1 = actif)
-static const int PIN_IPROPI = 34;    // ADC IPROPI (courant voie)
+static const int PIN_DRV_IPROPI = 34;    // ADC IPROPI (courant voie)
 static const int PIN_VRAIL = 35;     // ADC pont diviseur (tension voie)
 
-// --- RailCom HF (lecture sur les rails pendant le cutout) ---
-// Broche ADC1 OBLIGATOIRE (la capture DMA I2S ne fonctionne que sur l'ADC1 : GPIO 32..39)
-// Signal RailCom conditionné (opto + RC).
-static const int PIN_RAILCOM_ADC = 36; // ADC1_CH0
-
+// --- RailCom (sortie logique isolée du front-end carte) ---
+static const int PIN_RAILCOM_ISO = 36; // UART2 RX via matrice (input-only OK)
 // --- RMT ---
 static const int RMT_DCC_CHANNEL = 5;    // TX DCC (distinct du WS2812)
 static const int RMT_WS2812_CHANNEL = 7;  // Défaut Ws2812Universal
