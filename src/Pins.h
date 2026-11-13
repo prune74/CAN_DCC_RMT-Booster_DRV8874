@@ -9,6 +9,10 @@
 static const int PIN_CAN_TX = 5;     // TWAI natif
 static const int PIN_CAN_RX = 4;     // TWAI natif
 
+// --- UART vers EXCC ---
+static const int PIN_UART_TX = 17;
+static const int PIN_UART_RX = 16;
+
 // --- DRV8874 (mode PWM, PMODE strapé à 3,3 V) ---
 static const int PIN_DRV_IN1     = 32;    // DCC RMT canal 5 → IN1
 static const int PIN_DRV_IN2     = 33;    // même signal, inversé via matrice GPIO → IN2

@@ -22,7 +22,7 @@ bool RailCom::begin() {
                      UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE) != ESP_OK)
         return false;
     // Driver léger : la fenêtre de capture ne dure que ~488 µs
-    return uart_driver_install(UART_NUM_2, 64, 0, 0, nullptr, 0) == ESP_OK;
+    return uart_driver_install(UART_NUM_2, 256, 0, 0, nullptr, 0) == ESP_OK;
 }
 
 // Bloquant ~488 µs, une fois par trame DCC (~30 ms) — sans effet sur le

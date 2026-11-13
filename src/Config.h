@@ -8,8 +8,9 @@
 // Le brochage est dans Pins.h
 // ======================================================================================
 
-// --- Identité sur le bus (trame 0x102) ---
-static const uint8_t  CFG_BOOSTER_ID   = 1;     // ID_B_01 (1..32, unique sur le bus)
+// --- Identité reçue du CC via l'EXCC ---
+static constexpr uint8_t CFG_MAX_CANTON_ID = 252;
+static constexpr uint8_t CFG_CANTON_ID_UNASSIGNED = 0xFF;
 static const uint8_t  CFG_BOOSTER_TYPE = 1;     // TYPE B = booster (nommage ID_B_xx)
 
 // --- Bus CAN (identique au convertisseur) ---

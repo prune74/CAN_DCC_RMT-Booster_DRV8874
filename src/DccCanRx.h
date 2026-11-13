@@ -32,6 +32,7 @@ public:
 
     void begin();
     void onCanMessage(uint16_t id, const uint8_t *data, uint8_t len);
+    void setLocalBoosterId(uint8_t id);
     bool popBit(uint8_t &encoded);
     // Consomme un cutout ; remplit "global" avec le flag global du 0x101
     bool popCutout(bool &global);
@@ -50,4 +51,5 @@ private:
     bool     cutoutPending = false;
     bool     cutoutGlobal = false;
     uint32_t otherFaultMs = 0;   // 0 = aucun défaut distant connu
+    uint8_t  localBoosterId = CFG_CANTON_ID_UNASSIGNED;
 };

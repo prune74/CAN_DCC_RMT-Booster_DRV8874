@@ -6,7 +6,7 @@
 
 // ============================================================
 // Telemetry — trame 0x102, toutes les 1 s (DLC 5)
-//   data[0] = ID   (ID_B_xx de la carte, CFG_BOOSTER_ID)
+//   data[0] = ID   (ID du canton attribué par le CC)
 //   data[1] = TYPE (1 = booster)
 //   data[2] = mA / 10        (2550 mA max → DRV8874 OK)
 //   data[3] = mV / 100       (25.5 V max)

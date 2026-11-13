@@ -22,6 +22,56 @@ void BoosterCore::setTrackProfile(bool ho) noexcept
     tensionControl.setTrackProfile(ho);
 }
 
+void BoosterCore::setPowerEnabled(bool enabled)
+{
+    powerEnabled = enabled && hasBoosterId();
+    if (!powerEnabled)
+    {
+        if (telemetry.state == BoosterState::FAULT)
+            drv.disableOutput();
+        else
+            shutdown(BoosterState::OFF);
+    }
+}
+
+bool BoosterCore::setBoosterId(uint8_t id)
+{
+    if (id == CFG_CANTON_ID_UNASSIGNED)
+    {
+        if (hasBoosterId() || powerEnabled)
+            setPowerEnabled(false);
+        assignedBoosterId = CFG_CANTON_ID_UNASSIGNED;
+        canRx.setLocalBoosterId(assignedBoosterId);
+        return true;
+    }
+
+    if (id > CFG_MAX_CANTON_ID)
+        return false;
+
+    if (!hasBoosterId() || assignedBoosterId != id)
+    {
+        setPowerEnabled(false);
+        assignedBoosterId = id;
+        canRx.setLocalBoosterId(assignedBoosterId);
+    }
+    return true;
+}
+
+bool BoosterCore::isPowerEnabled() const noexcept
+{
+    return powerEnabled;
+}
+
+bool BoosterCore::hasBoosterId() const noexcept
+{
+    return assignedBoosterId != CFG_CANTON_ID_UNASSIGNED;
+}
+
+uint8_t BoosterCore::boosterId() const noexcept
+{
+    return assignedBoosterId;
+}
+
 void BoosterCore::onCanMessage(uint16_t id, const uint8_t *data, uint8_t len)
 {
     canRx.onCanMessage(id, data, len);
@@ -29,6 +79,20 @@ void BoosterCore::onCanMessage(uint16_t id, const uint8_t *data, uint8_t len)
 
 void BoosterCore::update()
 {
+    if (!hasBoosterId())
+    {
+        if (drv.isEnabled())
+            shutdown(BoosterState::OFF);
+        return;
+    }
+
+    if (!powerEnabled)
+    {
+        if (drv.isEnabled())
+            shutdown(BoosterState::OFF);
+        return;
+    }
+
     // --- 1. Failsafe : DCC perdu → coupe immédiate ---
     if (!canRx.dccAlive())
     {
@@ -49,8 +113,6 @@ void BoosterCore::update()
     }
 
     // --- 2. Sécurité locale (surintensité / sous-tension) ---
-    telemetry.current_mA = drv.readCurrent_mA();
-    telemetry.voltage_mV = drv.readVoltage_mV();
     if (telemetry.current_mA > CFG_MAX_CURRENT_MA ||
         telemetry.voltage_mV < CFG_MIN_VOLTAGE_MV)
     {
@@ -92,6 +154,12 @@ void BoosterCore::update()
         if (telemetry.state != BoosterState::FAULT)
             telemetry.state = BoosterState::OK;
     }
+}
+
+void BoosterCore::sampleSensors()
+{
+    telemetry.current_mA = drv.readCurrent_mA();
+    telemetry.voltage_mV = drv.readVoltage_mV();
 }
 
 const BoosterTelemetry &BoosterCore::getTelemetry() const { return telemetry; }

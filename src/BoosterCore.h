@@ -22,9 +22,15 @@ public:
     void begin();
     void onCanMessage(uint16_t id, const uint8_t *data, uint8_t len);
     void update();
+    void sampleSensors();
+    void setPowerEnabled(bool enabled);
+    bool setBoosterId(uint8_t id);
 
     // Gestion du profil de tension (HO/N)
     void setTrackProfile(bool ho) noexcept;
+    bool isPowerEnabled() const noexcept;
+    bool hasBoosterId() const noexcept;
+    uint8_t boosterId() const noexcept;
 
     const BoosterTelemetry &getTelemetry() const;
     DccCanRx &getCanRx();
@@ -39,4 +45,6 @@ private:
     RailCom railcom;
     TensionControl tensionControl;
     BoosterTelemetry telemetry;
+    bool powerEnabled = false;
+    uint8_t assignedBoosterId = CFG_CANTON_ID_UNASSIGNED;
 };

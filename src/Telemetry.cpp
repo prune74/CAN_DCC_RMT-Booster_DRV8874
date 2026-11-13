@@ -8,17 +8,20 @@ void Telemetry::update() {
     lastSend = now;
 
     const BoosterTelemetry &t = core.getTelemetry();
-    uint8_t data[5];
-    data[0] = CFG_BOOSTER_ID;
-    data[1] = CFG_BOOSTER_TYPE;
-    data[2] = (uint8_t)(t.current_mA / 10);
-    data[3] = (uint8_t)(t.voltage_mV / 100);
-    data[4] = (uint8_t)t.state;
-    send(0x102, data, 5);
+    if (core.hasBoosterId()) {
+        uint8_t data[5];
+        data[0] = core.boosterId();
+        data[1] = CFG_BOOSTER_TYPE;
+        data[2] = (uint8_t)(t.current_mA / 10);
+        data[3] = (uint8_t)(t.voltage_mV / 100);
+        data[4] = (uint8_t)t.state;
+        send(0x102, data, 5);
+    }
 
     // RailCom : adresse détectée → 0x103, little-endian
     // (réservé côté convertisseur — à valider avec DCC_CAN_RMT-Booster)
-    if (t.railcomAddress != 0 && t.railcomAddress != lastRailcomSent) {
+    if (core.hasBoosterId() &&
+        t.railcomAddress != 0 && t.railcomAddress != lastRailcomSent) {
         uint8_t rc[2] = { (uint8_t)(t.railcomAddress & 0xFF),
                           (uint8_t)(t.railcomAddress >> 8) };
         send(0x103, rc, 2);
