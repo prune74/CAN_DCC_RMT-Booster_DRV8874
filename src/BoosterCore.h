@@ -11,7 +11,7 @@
 // BoosterCore — orchestration
 //
 //  update() — appelé en boucle, jamais bloquant :
-//    1. failsafe (watchdog blocs 0x100) + protection globale (0x102)
+//    1. failsafe (watchdog blocs 0x100)
 //    2. sécurité locale (courant, tension)
 //    3. cutout RailCom régénéré (0x101, BRAKE + capture UART)
 //    4. flux bits FIFO → RMT

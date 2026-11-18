@@ -2,10 +2,6 @@
 
 void DccCanRx::begin() { lastBlockMs = millis(); }
 
-void DccCanRx::setLocalBoosterId(uint8_t id) {
-    localBoosterId = id;
-}
-
 void DccCanRx::onCanMessage(uint16_t id, const uint8_t *data, uint8_t len) {
     if (id == DCC_BLOCK_ID && len >= 1) {
         const uint8_t n = data[0];
@@ -24,18 +20,6 @@ void DccCanRx::onCanMessage(uint16_t id, const uint8_t *data, uint8_t len) {
         // { local, global } — data[0] = local, data[1] = global (si présent)
         cutoutPending = true;
         cutoutGlobal  = (len >= 2) ? (data[1] != 0) : (data[0] != 0);
-    } else if (id == TELEMETRY_ID && len >= 5) {
-        // Télémétrie d'un autre booster : { ID, TYPE, mA/10, mV/100, état }
-        if (localBoosterId == CFG_CANTON_ID_UNASSIGNED ||
-            data[0] != localBoosterId) {
-            const uint8_t state = data[4];
-            if (state == (uint8_t)BoosterState::FAULT ||
-                state == (uint8_t)BoosterState::OVERHEAT) {
-                otherFaultMs = millis();   // défaut distant (fenêtre configurable)
-            } else {
-                otherFaultMs = 0;          // l'autre va mieux -> lève le signal
-            }
-        }
     }
 }
 
@@ -52,11 +36,6 @@ bool DccCanRx::popCutout(bool &global) {
     cutoutPending = false;
     global = cutoutGlobal;
     return true;
-}
-
-bool DccCanRx::otherBoosterFault() const {
-    if (otherFaultMs == 0) return false;
-    return (millis() - otherFaultMs) < CFG_GLOBAL_FAULT_TIMEOUT_MS;
 }
 
 // Watchdog : le convertisseur coupe à > 500 µs de silence DCC ;

@@ -41,7 +41,6 @@ bool BoosterCore::setBoosterId(uint8_t id)
         if (hasBoosterId() || powerEnabled)
             setPowerEnabled(false);
         assignedBoosterId = CFG_CANTON_ID_UNASSIGNED;
-        canRx.setLocalBoosterId(assignedBoosterId);
         return true;
     }
 
@@ -52,7 +51,6 @@ bool BoosterCore::setBoosterId(uint8_t id)
     {
         setPowerEnabled(false);
         assignedBoosterId = id;
-        canRx.setLocalBoosterId(assignedBoosterId);
     }
     return true;
 }
@@ -101,14 +99,6 @@ void BoosterCore::update()
             shutdown(BoosterState::OFF);
             // TODO : trame d'événement immédiate (hors télémétrie 1 s)
         }
-        return;
-    }
-
-    // --- 1b. Protection globale : un autre booster en défaut → coupe ---
-    if (CFG_ENABLE_GLOBAL_PROTECTION && canRx.otherBoosterFault())
-    {
-        if (drv.isEnabled())
-            shutdown(BoosterState::OFF);
         return;
     }
 

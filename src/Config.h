@@ -30,13 +30,8 @@ static constexpr uint16_t CFG_IPROPI_GAIN_UA_PER_A = 455; // 450 typ. datasheet,
 static constexpr uint32_t CFG_VRAIL_R1_OHMS = 68000; // haut
 static constexpr uint32_t CFG_VRAIL_R2_OHMS = 10000; // bas
 
-// --- Protection globale (reprise de l'ancien projet « Gestion Canton 2026 ») ---
-// Coupe si un autre booster signale un défaut (état FAULT/OVERHEAT dans son 0x102)
-static const bool CFG_ENABLE_GLOBAL_PROTECTION = true;
 // Honore le cutout global (flag « global » du 0x101) ; false = l'ignore
 static const bool CFG_ENABLE_GLOBAL_CUTOUT = true;
-// Fenêtre de validité d'un défaut distant (les 0x102 arrivent toutes les 1 s)
-static const uint32_t CFG_GLOBAL_FAULT_TIMEOUT_MS = 2000;
 
 // --- Cutout RailCom régénéré ---
 // Calé sur la centrale LaBox (Locoduino) : TCS = 29 µs + TCE = 459 µs = 488 µs
