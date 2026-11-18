@@ -18,10 +18,10 @@ flowchart LR
         DA -->|District 2| CONV_A2[DCC_CAN_RMT-Booster 2]
         CONV_A1 -->|CAN local 0x100 / 0x101| A1B1[Booster DRV8874 1]
         CONV_A1 -->|CAN local 0x100 / 0x101| A1B2[Booster DRV8874 2 ...]
-        A1B1 -->|0x102 / 0x103| CONV_A1
-        A1B2 -->|0x102 / 0x103| CONV_A1
+        A1B1 -->|0x102| CONV_A1
+        A1B2 -->|0x102| CONV_A1
         CONV_A2 -->|CAN local 0x100 / 0x101| A2B1[Booster DRV8874 1 ...]
-        A2B1 -->|0x102 / 0x103| CONV_A2
+        A2B1 -->|0x102| CONV_A2
         CONV_A1 -->|Défaut : ligne TOR| DA
         CONV_A2 -->|Défaut : ligne TOR| DA
     end
@@ -30,7 +30,7 @@ flowchart LR
         direction LR
         DB[DISTRIB B ...] -->|District 1 ...| CONV_B1[DCC_CAN_RMT-Booster]
         CONV_B1 -->|CAN local dédié au district| B1[Un ou plusieurs boosters DRV8874]
-        B1 -->|Télémétrie 0x102 / RailCom 0x103| CONV_B1
+        B1 -->|Télémétrie 0x102| CONV_B1
         CONV_B1 -->|Défaut : ligne TOR| DB
     end
 
@@ -69,7 +69,7 @@ sequenceDiagram
     B-->>EXCC: Mesures courant/tension, état et RailCom (UART)
     EXCC-->>CC: État et mesures du booster (CAN Command)
     C->>B: DCC 0x100 et cutout 0x101 (CAN local)
-    B-->>C: Télémétrie 0x102 et RailCom 0x103 (CAN local)
+    B-->>C: Télémétrie 0x102 (CAN local)
     Note over B: En cas de défaut local, le booster publie son état;
     Note over C: le convertisseur détecte le défaut du groupe et signale le DISTRIB.
     C-->>D: Signal d'injection TOR du district
@@ -85,12 +85,19 @@ TWAI natif de l’ESP32, configuré à **500 kbit/s**.
 
 | ID CAN | Sens | Données et rôle |
 |---|---|---|
-| `0x100` | Convertisseur → booster | Bloc de bits DCC : `data[0]` indique le nombre de bits; les nibbles suivants encodent bit et phase. Le booster place les bits en FIFO puis les régénère par RMT. |
-| `0x101` | Convertisseur → booster | Début/fin de cutout RailCom; le booster passe le DRV8874 en freinage pendant la capture. |
-| `0x102` | Booster → convertisseur et pairs du segment | `{ID canton, TYPE=1, courant/10, tension/100, état}`; périodicité d’une seconde après attribution d’un ID. Le booster n’utilise pas les `0x102` reçus pour commander sa sortie. |
-| `0x103` | Booster → CAN local | Adresse RailCom détectée, deux octets little-endian. |
+| `0x100` | Convertisseur → booster | Bloc de bits DCC chronologiques : `data[0]` indique leur nombre; premier bit dans le nibble haut, puis bas. Chaque nibble encode `(bit << 1) \| phase`. Le booster conserve l’ordre et régénère les bits par RMT. |
+| `0x101` | Convertisseur → booster | START `{1,1}` suivi d’END `{0,0}`. Le START est inséré dans la file ordonnée après les bits qui le précèdent; le cutout attend leur fin d’émission RMT. END ne déclenche pas une seconde capture. |
+| `0x102` | Booster → convertisseur et pairs du segment | `{ID canton, TYPE=1, courant/10, tension/100, état}`; émis sur changement d’état et heartbeat toutes les 5 s après attribution d’un ID. Le booster n’utilise pas les `0x102` reçus pour commander sa sortie. |
 
 États télémétriques : `0=OK`, `1=FAULT`, `2=OVERHEAT`, `3=OFF`, `4=RETRY` (réservé).
+
+L’adresse RailCom est transmise à l’EXCC associé par UART (`0x11`). Le RailCom
+ne transite pas sur le CAN local.
+
+Après un défaut local, la sortie est coupée immédiatement et le booster attend
+**100 ms** avant de tenter sa réactivation si les mesures sont revenues sous
+les seuils. Il émet `0x102` au changement d’état; le heartbeat de 5 s permet au
+convertisseur de détecter une perte de communication.
 
 ### UART vers l’EXCC associé
 
@@ -167,7 +174,7 @@ Le firmware de l’EXCC associé doit utiliser le même protocole UART version 2
 | `BoosterUartLink.*`, `UartProtocol.h` | Commandes, heartbeat, ID, mesures et RailCom vers/depuis l’EXCC. |
 | `CanBooster.*`, `BoosterCanConfig.h` | Initialisation et réception/émission sur le CAN DCC local. |
 | `DccCanRx.*` | Décodage des blocs `0x100`, cutouts `0x101` et watchdog DCC. |
-| `Telemetry.*` | Émission de la télémétrie `0x102` et de l’adresse RailCom `0x103`. |
+| `Telemetry.*` | Émission de la télémétrie `0x102` sur le CAN local. |
 | `DccRegen.*`, `Drv8874.*` | Régénération DCC par RMT et commande du DRV8874. |
 | `RailCom.*` | Capture RailCom pendant le cutout. |
 | `TensionControl.*` | Réglage du profil N/HO via digipot I2C. |
@@ -176,3 +183,5 @@ Le firmware de l’EXCC associé doit utiliser le même protocole UART version 2
 ## État de validation
 
 La compilation du firmware a été confirmée sans erreur. Cela valide la construction logicielle, pas à lui seul le câblage CAN/UART, les seuils analogiques, la régénération du signal DCC ou le comportement RailCom sur le matériel réel.
+
+**Validation matérielle DCC/RailCom à faire :** comparer le signal DCC en sortie de LaBox avec la sortie régénérée du DRV8874, à l’oscilloscope ou à l’analyseur logique. Vérifier l’ordre des bits, la durée de cutout de 488 µs et son placement exact par rapport aux bits précédents et suivants. La durée annoncée par le code LaBox doit être confirmée sur la forme d’onde réelle avant tout ajustement logiciel supplémentaire.

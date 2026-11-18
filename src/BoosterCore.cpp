@@ -106,30 +106,31 @@ void BoosterCore::update()
     if (telemetry.current_mA > CFG_MAX_CURRENT_MA ||
         telemetry.voltage_mV < CFG_MIN_VOLTAGE_MV)
     {
+        if (telemetry.state != BoosterState::FAULT)
+            localFaultSinceMs = millis();
         shutdown(BoosterState::FAULT);
         return;
     }
 
-    // --- 3. Cutout RailCom (0x101) : BRAKE + capture UART ~488 µs ---
-    bool global = false;
-    if (canRx.popCutout(global) && telemetry.state != BoosterState::FAULT)
+    // Laisser le booster en sécurité pendant 100 ms avant de réessayer.
+    // Si les mesures restent dans les seuils, effacer FAULT et reconnecter
+    // la sortie au prochain bloc DCC.
+    if (telemetry.state == BoosterState::FAULT)
     {
-        // Option GLOBAL_CUTOUT : honorer/ignorer le cutout global
-        if (CFG_ENABLE_GLOBAL_CUTOUT || !global)
-        {
-            drv.cutoutStart();                                         // BRAKE : rails communs
-            telemetry.railcomAddress = railcom.capture(CFG_CUTOUT_US);  // UART pendant ~488 µs
-            drv.cutoutEnd();                                           // rebranchement RMT
-        }
+        if (millis() - localFaultSinceMs < CFG_FAULT_RETRY_DELAY_MS)
+            return;
+        telemetry.state = BoosterState::OK;
     }
 
-    // --- 4. Flux DCC : FIFO → RMT, par paquets de 32 bits ---
+    // --- 3. Flux DCC et cutout, traités dans l'ordre CAN ---
     uint8_t bits[32];
     size_t n = 0;
-    uint8_t encoded;
-    while (n < 32 && canRx.popBit(encoded))
+    DccCanEvent event;
+    while (n < 32 && canRx.peekEvent(event) &&
+           event.type == DccCanEventType::BIT)
     {
-        bits[n++] = encoded & 0x01; // bit DCC (la phase sert à l'alignement amont)
+        canRx.popEvent(event);
+        bits[n++] = event.encoded & 0x01; // la phase n'affecte pas la valeur du bit
     }
     if (n > 0)
     {
@@ -143,6 +144,24 @@ void BoosterCore::update()
         }
         if (telemetry.state != BoosterState::FAULT)
             telemetry.state = BoosterState::OK;
+        return; // traiter l'événement suivant au prochain tour
+    }
+
+    if (canRx.peekEvent(event) && event.type == DccCanEventType::CUTOUT)
+    {
+        // Ne commence le cutout qu'après émission effective de tous les bits
+        // qui le précèdent dans le flux CAN.
+        if (regen.busy())
+            return;
+
+        canRx.popEvent(event);
+        if (telemetry.state != BoosterState::FAULT &&
+            (CFG_ENABLE_GLOBAL_CUTOUT || !event.global))
+        {
+            drv.cutoutStart();
+            telemetry.railcomAddress = railcom.capture(CFG_CUTOUT_US);
+            drv.cutoutEnd();
+        }
     }
 }
 

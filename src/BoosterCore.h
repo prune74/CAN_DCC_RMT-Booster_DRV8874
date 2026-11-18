@@ -47,4 +47,5 @@ private:
     BoosterTelemetry telemetry;
     bool powerEnabled = false;
     uint8_t assignedBoosterId = CFG_CANTON_ID_UNASSIGNED;
+    uint32_t localFaultSinceMs = 0;
 };

@@ -24,10 +24,10 @@ void CanBooster::poll() {
 }
 
 // Callback de Telemetry : émission 0x102 via CanMsg (champs publics)
-void CanBooster::sendFrame(uint16_t id, const uint8_t *data, uint8_t len) {
+bool CanBooster::sendFrame(uint16_t id, const uint8_t *data, uint8_t len) {
     CanMsg msg;
     msg.id = id;
     msg.dlc = len;
     memcpy(msg.data, data, len);
-    CanBus::bus(0).send(msg);       // non bloquant (false = case TX pleine)
+    return CanBus::bus(0).send(msg); // false : case TX pleine, sera retenté
 }

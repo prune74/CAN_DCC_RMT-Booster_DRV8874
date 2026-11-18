@@ -11,30 +11,32 @@ void DccCanRx::onCanMessage(uint16_t id, const uint8_t *data, uint8_t len) {
                 const uint8_t nibble  = (i & 1) ? (byteVal & 0x0F) : (byteVal >> 4);
                 const uint8_t bit     = (nibble >> 1) & 0x01; // valeur du bit DCC
                 const uint8_t phase   = nibble & 0x01;       // demi-bit (alignement)
-                push(bit | (phase << 1));
+                pushBit(bit | (phase << 1));
             }
             lastBlockMs = millis();
             blocksSeen++;
         }
     } else if (id == CUTOUT_ID && len >= 1) {
-        // { local, global } — data[0] = local, data[1] = global (si présent)
-        cutoutPending = true;
-        cutoutGlobal  = (len >= 2) ? (data[1] != 0) : (data[0] != 0);
+        // Le convertisseur émet START {1,1} puis END {0,0}; seule
+        // l'activation START devient un événement dans le flux DCC.
+        const bool local = data[0] != 0;
+        const bool global = (len >= 2) ? data[1] != 0 : local;
+        if (local || global)
+            pushCutout(global);
     }
 }
 
-bool DccCanRx::popBit(uint8_t &encoded) {
+bool DccCanRx::peekEvent(DccCanEvent &event) const {
     if (count == 0) return false;
-    encoded = fifo[head];
-    head = (head + 1) % FIFO_SIZE;
-    count--;
+    event = fifo[head];
     return true;
 }
 
-bool DccCanRx::popCutout(bool &global) {
-    if (!cutoutPending) return false;
-    cutoutPending = false;
-    global = cutoutGlobal;
+bool DccCanRx::popEvent(DccCanEvent &event) {
+    if (count == 0) return false;
+    event = fifo[head];
+    head = (head + 1) % FIFO_SIZE;
+    count--;
     return true;
 }
 
@@ -42,8 +44,20 @@ bool DccCanRx::popCutout(bool &global) {
 // on rejoue la même exigence côté booster (500 ms de marge bus).
 bool DccCanRx::dccAlive() const { return (millis() - lastBlockMs) < CFG_FAILSAFE_MS; }
 
-void DccCanRx::push(uint8_t encoded) {
-    if (count >= FIFO_SIZE) return; // FIFO pleine : bit perdu (compteur ?)
-    fifo[(head + count) % FIFO_SIZE] = encoded;
+void DccCanRx::pushBit(uint8_t encoded) {
+    if (count >= FIFO_SIZE) return;
+    DccCanEvent &event = fifo[(head + count) % FIFO_SIZE];
+    event.type = DccCanEventType::BIT;
+    event.encoded = encoded;
+    event.global = false;
+    count++;
+}
+
+void DccCanRx::pushCutout(bool global) {
+    if (count >= FIFO_SIZE) return;
+    DccCanEvent &event = fifo[(head + count) % FIFO_SIZE];
+    event.type = DccCanEventType::CUTOUT;
+    event.encoded = 0;
+    event.global = global;
     count++;
 }

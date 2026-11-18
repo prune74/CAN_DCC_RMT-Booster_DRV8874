@@ -7,21 +7,33 @@
 // ============================================================
 // DccCanRx — décodage des trames CAN du protocole DCC_CAN_RMT-Booster
 //
-//   0x100 : bloc de bits DCC
+//   0x100 : bloc de bits DCC, transmis dans l'ordre chronologique
 //     data[0] = N bits (1..16)
-//     puis 4 bits/octet, chaque nibble = (bit << 1) | phase
+//     puis 4 bits/octet : premier bit dans le nibble haut, chaque nibble
+//     vaut (bit << 1) | phase
 //     DLC = 1 + ceil(N/2)
 //
-//   0x101 : cutout réel { local, global } — START/END consécutifs
-//     data[0] = local, data[1] = global
+//   0x101 : START { local, global } puis END { 0, 0 }.
+//     Le START est inséré dans la même FIFO que les bits, après les bits
+//     qui le précèdent. L'END ne produit pas un second cutout.
 //
 //   0x102 : télémétrie sur le CAN local ; elle n'intervient pas dans les
 //     décisions de ce booster (la supervision remonte par UART à l'EXCC).
 //
-//   Le convertisseur envoie le flux au fil de l'eau (bloc parti à
-//   16 bits, sur cutout, ou après 500 µs de silence) : on stocke tout
-//   dans une FIFO de bits, le Core la vide vers le RMT.
+//   Le convertisseur envoie le flux au fil de l'eau. Blocs et START cutout
+//   sont conservés dans une FIFO ordonnée que le Core vide vers le RMT.
 // ============================================================
+
+enum class DccCanEventType : uint8_t {
+    BIT,
+    CUTOUT
+};
+
+struct DccCanEvent {
+    DccCanEventType type = DccCanEventType::BIT;
+    uint8_t encoded = 0; // bit DCC + phase pour BIT
+    bool global = false; // portée du cutout
+};
 
 class DccCanRx {
 public:
@@ -31,19 +43,17 @@ public:
 
     void begin();
     void onCanMessage(uint16_t id, const uint8_t *data, uint8_t len);
-    bool popBit(uint8_t &encoded);
-    // Consomme un cutout ; remplit "global" avec le flag global du 0x101
-    bool popCutout(bool &global);
+    bool peekEvent(DccCanEvent &event) const;
+    bool popEvent(DccCanEvent &event);
     bool dccAlive() const;
 
     uint32_t blocksSeen = 0;
 
 private:
-    void push(uint8_t encoded);
+    void pushBit(uint8_t encoded);
+    void pushCutout(bool global);
 
-    uint8_t  fifo[FIFO_SIZE] = {0};
+    DccCanEvent fifo[FIFO_SIZE] = {};
     size_t   head = 0, count = 0;
     uint32_t lastBlockMs = 0;
-    bool     cutoutPending = false;
-    bool     cutoutGlobal = false;
 };

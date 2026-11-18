@@ -20,6 +20,8 @@ static const uint32_t CFG_CAN_BITRATE = 500000; // 500 kbit/s
 static const uint32_t CFG_FAILSAFE_MS    = 500;   // Pas de bloc 0x100 depuis 500 ms → OFF
 static const uint16_t CFG_MAX_CURRENT_MA = 2000;  // Limite voie 2 A (RIPROPI 3,6 kΩ = pleine échelle ADC)
 static const uint16_t CFG_MIN_VOLTAGE_MV = 9000;  // Sous-tension → FAULT
+static constexpr uint32_t CFG_FAULT_RETRY_DELAY_MS = 100; // pause avant tentative locale
+static constexpr uint32_t CFG_TELEMETRY_HEARTBEAT_MS = 5000; // présence CAN
 
 // Mesure courant via IPROPI (datasheet SLVSF66A eq.1/2) :
 //   I = V_IPROPI / (R_IPROPI * AIPROPI)

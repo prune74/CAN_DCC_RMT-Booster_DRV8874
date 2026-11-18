@@ -15,7 +15,7 @@ public:
     void poll();
 
     // Callback de Telemetry : émission 0x102 via CanMsg
-    static void sendFrame(uint16_t id, const uint8_t *data, uint8_t len);
+    static bool sendFrame(uint16_t id, const uint8_t *data, uint8_t len);
 
 private:
     BoosterCanConfig cfgProvider;
