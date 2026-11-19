@@ -11,7 +11,7 @@
 // --- Identité reçue du CC via l'EXCC ---
 static constexpr uint8_t CFG_MAX_CANTON_ID = 252;
 static constexpr uint8_t CFG_CANTON_ID_UNASSIGNED = 0xFF;
-static const uint8_t  CFG_BOOSTER_TYPE = 1;     // TYPE B = booster (nommage ID_B_xx)
+static const uint8_t  CFG_BOOSTER_TYPE = 4;     // TYPE B = booster (nommage ID_B_xx)
 
 // --- Bus CAN (identique au convertisseur) ---
 static const uint32_t CFG_CAN_BITRATE = 500000; // 500 kbit/s
