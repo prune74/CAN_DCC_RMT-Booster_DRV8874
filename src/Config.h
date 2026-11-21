@@ -18,7 +18,7 @@ static const uint8_t  CFG_BOOSTER_TYPE = static_cast<uint8_t>(cfc::discovery::No
 static const uint32_t CFG_CAN_BITRATE = 500000; // 500 kbit/s
 
 // --- Sécurité voie ---
-static const uint32_t CFG_FAILSAFE_MS    = 500;   // Pas de bloc 0x100 depuis 500 ms → OFF
+static const uint32_t CFG_FAILSAFE_MS    = 50;    // v0.4.0 : aucun enregistrement 0x100 depuis 50 ms → OFF
 static const uint16_t CFG_MAX_CURRENT_MA = 2000;  // Limite voie 2 A (RIPROPI 3,6 kΩ = pleine échelle ADC)
 static const uint16_t CFG_MIN_SUPPLY_VOLTAGE_MV = 9000; // Sous-tension alimentation → FAULT
 static constexpr uint32_t CFG_FAULT_RETRY_DELAY_MS = 100; // pause avant tentative locale
@@ -34,14 +34,10 @@ static constexpr uint16_t CFG_IPROPI_GAIN_UA_PER_A = 455; // 450 typ. datasheet,
 static constexpr uint32_t CFG_SUPPLY_DIV_R1_OHMS = 68000; // haut
 static constexpr uint32_t CFG_SUPPLY_DIV_R2_OHMS = 10000; // bas
 
-// Honore le cutout global (flag « global » du 0x101) ; false = l'ignore
+// Honore le cutout global (drapeau global de l'enregistrement 0x100).
 static const bool CFG_ENABLE_GLOBAL_CUTOUT = true;
 
-// --- Compatibilité cutout CAN ---
-// Ancien START 0x101 DLC 2, sans intervalle mesuré : valeur de repli seulement.
-static const uint32_t CFG_CUTOUT_US = 488;
-// Garde-fous pour l'intervalle cutout reçu du convertisseur.
-// 488 µs reste le défaut pour un ancien START 0x101 sans durée (DLC 2).
+// --- Validation de la durée cutout reçue dans l'enregistrement 0x100 ---
 static constexpr uint16_t CFG_CUTOUT_MIN_US = 300;
 static constexpr uint16_t CFG_CUTOUT_MAX_US = 2000;
 

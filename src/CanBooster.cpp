@@ -18,8 +18,8 @@ void CanBooster::poll() {
     CanMsg msg;
     while (bus->receive(msg)) {    // réception non bloquante
         leds->noteCanActivity(millis());
-        // ID 11 bits : cast explicite en uint16_t (cf. piège CanMsg)
-        core->onCanMessage((uint16_t)msg.id, msg.data, msg.dlc);
+        if (!msg.is11()) continue;
+        core->onCanMessage(static_cast<uint16_t>(msg.id), msg.data, msg.dlc);
     }
 }
 

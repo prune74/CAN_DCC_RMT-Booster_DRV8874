@@ -36,17 +36,17 @@ static void printDccDiagnostics() {
                   (unsigned long)booster.profileApplications(),
                   (unsigned long)booster.dccReferenceValidFrames(),
                   (unsigned long)booster.dccReferenceInvalidFrames());
-    Serial.printf("Cutout 0x101: START reçus=%lu; appliqués=%lu; dernier reçu=",
+    Serial.printf("Cutout dans 0x100: reçus=%lu; appliqués=%lu; dernier reçu=",
                   (unsigned long)rx.cutoutStartsReceived(),
                   (unsigned long)booster.cutoutsApplied());
     if (rx.lastCutoutReceivedMeasured())
         Serial.printf("%u µs", static_cast<unsigned>(rx.lastCutoutReceivedUs()));
     else
-        Serial.print("durée absente (ancien DLC 2)");
+        Serial.print("durée absente (trame invalide)");
     if (booster.cutoutsApplied() > 0)
         Serial.printf("; dernier appliqué=%u µs (%s)",
                       static_cast<unsigned>(booster.lastCutoutAppliedUs()),
-                      booster.lastCutoutWasMeasured() ? "mesuré" : "repli DLC 2");
+                      booster.lastCutoutWasMeasured() ? "mesuré" : "non mesuré");
     else
         Serial.print("; aucun cutout appliqué depuis le démarrage");
     Serial.printf("; hors plage=%lu; ignorés état/portée=%lu; malformés=%lu; FIFO perdus=%lu\n",
@@ -88,7 +88,7 @@ void setup() {
 
 void loop() {
     pollDiagnosticConsole();
-    canLink.poll();       // pompe le CAN → décodage 0x100/0x101
+    canLink.poll();       // pompe le CAN → décodage du flux 0x100 v0.4.0
     booster.update();     // failsafe + sécurité + cutout + flux RMT
     uartLink.update(booster); // commandes, heartbeat et mesures à 1 kHz
     telemetry.update();   // trame 0x102 toutes les 1 s

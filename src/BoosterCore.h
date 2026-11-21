@@ -13,7 +13,7 @@
 //  update() — appelé en boucle, jamais bloquant :
 //    1. failsafe (watchdog blocs 0x100)
 //    2. sécurité locale (courant, tension)
-//    3. cutout RailCom régénéré (0x101, BRAKE + capture UART)
+//    3. cutout RailCom régénéré (enregistrement 0x100, BRAKE + capture UART)
 //    4. flux bits FIFO → RMT
 // ============================================================
 

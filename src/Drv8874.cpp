@@ -24,7 +24,7 @@ void Drv8874::connectDcc(rmt_channel_t channel) {
 
 void Drv8874::cutoutStart() {
     // Déconnecte les deux IN du RMT, force 1/1 = BRAKE (séquence timer_isr_CutOut
-    // de la Labox, ici en task car déclenchée par l'événement CAN 0x101).
+    // de LaBox, ici en task car déclenchée par l'événement CAN 0x100).
     gpio_matrix_out((gpio_num_t)PIN_DRV_IN1, GPIO_SIG_DETACH, false, false);
     gpio_matrix_out((gpio_num_t)PIN_DRV_IN2, GPIO_SIG_DETACH, false, false);
     gpio_set_level((gpio_num_t)PIN_DRV_IN1, 1);

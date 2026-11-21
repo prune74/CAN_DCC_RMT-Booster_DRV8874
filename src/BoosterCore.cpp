@@ -241,9 +241,13 @@ void BoosterCore::update()
         if (telemetry.state != BoosterState::FAULT &&
             (CFG_ENABLE_GLOBAL_CUTOUT || !event.global))
         {
-            // Reproduire l'intervalle reçu; le DLC 2 historique utilise le repli.
-            const uint32_t intervalUs = event.hasMeasuredCutoutInterval
-                ? event.cutoutIntervalUs : CFG_CUTOUT_US;
+            // Le flux v0.4.0 exige une durée mesurée dans l'enregistrement.
+            if (!event.hasMeasuredCutoutInterval)
+            {
+                skippedCutoutCount++;
+                return;
+            }
+            const uint32_t intervalUs = event.cutoutIntervalUs;
             if (intervalUs < CFG_CUTOUT_MIN_US || intervalUs > CFG_CUTOUT_MAX_US) {
                 rejectedCutoutRangeCount++;
                 return; // ne pas lancer BRAKE avec une durée absente ou aberrante
