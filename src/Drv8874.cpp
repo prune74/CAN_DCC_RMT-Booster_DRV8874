@@ -65,8 +65,9 @@ uint16_t Drv8874::readCurrent_mA() {
     return (uint16_t)(ma > 65000 ? 65000 : ma);
 }
 
-// Vrail = Vadc * (R1 + R2) / R2  (pont 68 k / 10 k = x7,8)
-uint16_t Drv8874::readVoltage_mV() {
-    const uint32_t mv = analogReadMilliVolts(PIN_VRAIL);
-    return (uint16_t)(mv * (CFG_VRAIL_R1_OHMS + CFG_VRAIL_R2_OHMS) / CFG_VRAIL_R2_OHMS);
+// Tension sortie alimentation = Vadc * (R1 + R2) / R2 (68 k / 10 k = x7,8).
+uint16_t Drv8874::readSupplyVoltage_mV() {
+    const uint32_t mv = analogReadMilliVolts(PIN_SUPPLY_SENSE);
+    return (uint16_t)(mv * (CFG_SUPPLY_DIV_R1_OHMS + CFG_SUPPLY_DIV_R2_OHMS) /
+                      CFG_SUPPLY_DIV_R2_OHMS);
 }

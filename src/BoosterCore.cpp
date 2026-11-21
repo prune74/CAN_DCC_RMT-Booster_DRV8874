@@ -84,6 +84,30 @@ void BoosterCore::update()
         return;
     }
 
+    // Appliquer le profil DCC reçu avant d'évaluer MAIN, afin que le diagnostic
+    // distingue un profil reçu d'un profil effectivement chargé dans le RMT.
+    if (canRx.hasDccProfile() &&
+        (!profileApplied || appliedProfileSeq != canRx.profileSequence()))
+    {
+        if (regen.setHalfBitUs(canRx.halfBit1Us(), canRx.halfBit0Us()))
+        {
+            profileApplied = true;
+            appliedProfileSeq = canRx.profileSequence();
+            appliedBit1Us = canRx.halfBit1Us();
+            appliedBit0Us = canRx.halfBit0Us();
+            appliedProfileCount++;
+        }
+    }
+
+    // Un profil LaBox reçu par le CAN local peut arrêter immédiatement
+    // les boosters lorsque MAIN est coupé. Sans profil, garder le repli
+    // historique 58/100 µs pour compatibilité avec les anciens convertisseurs.
+    if (canRx.hasDccProfile() && !canRx.dccMainOn())
+    {
+        shutdown(BoosterState::OFF);
+        return;
+    }
+
     if (!powerEnabled)
     {
         if (drv.isEnabled())
@@ -104,7 +128,7 @@ void BoosterCore::update()
 
     // --- 2. Sécurité locale (surintensité / sous-tension) ---
     if (telemetry.current_mA > CFG_MAX_CURRENT_MA ||
-        telemetry.voltage_mV < CFG_MIN_VOLTAGE_MV)
+        telemetry.voltage_mV < CFG_MIN_SUPPLY_VOLTAGE_MV)
     {
         if (telemetry.state != BoosterState::FAULT)
             localFaultSinceMs = millis();
@@ -158,9 +182,21 @@ void BoosterCore::update()
         if (telemetry.state != BoosterState::FAULT &&
             (CFG_ENABLE_GLOBAL_CUTOUT || !event.global))
         {
+            // Reproduire l'intervalle reçu; le DLC 2 historique utilise le repli.
+            const uint32_t intervalUs = event.hasMeasuredCutoutInterval
+                ? event.cutoutIntervalUs : CFG_CUTOUT_US;
+            if (intervalUs < CFG_CUTOUT_MIN_US || intervalUs > CFG_CUTOUT_MAX_US) {
+                rejectedCutoutRangeCount++;
+                return; // ne pas lancer BRAKE avec une durée absente ou aberrante
+            }
             drv.cutoutStart();
-            telemetry.railcomAddress = railcom.capture(CFG_CUTOUT_US);
+            telemetry.railcomAddress = railcom.capture(intervalUs);
             drv.cutoutEnd();
+            appliedCutoutCount++;
+            lastAppliedCutoutUs = static_cast<uint16_t>(intervalUs);
+            lastCutoutMeasured = event.hasMeasuredCutoutInterval;
+        } else {
+            skippedCutoutCount++;
         }
     }
 }
@@ -168,9 +204,19 @@ void BoosterCore::update()
 void BoosterCore::sampleSensors()
 {
     telemetry.current_mA = drv.readCurrent_mA();
-    telemetry.voltage_mV = drv.readVoltage_mV();
+    telemetry.voltage_mV = drv.readSupplyVoltage_mV();
 }
 
 const BoosterTelemetry &BoosterCore::getTelemetry() const { return telemetry; }
 DccCanRx &BoosterCore::getCanRx() { return canRx; }
 Drv8874 &BoosterCore::getDrv() { return drv; }
+bool BoosterCore::hasAppliedDccProfile() const noexcept { return profileApplied; }
+uint16_t BoosterCore::appliedProfileSequence() const noexcept { return appliedProfileSeq; }
+uint8_t BoosterCore::appliedHalfBit1Us() const noexcept { return appliedBit1Us; }
+uint8_t BoosterCore::appliedHalfBit0Us() const noexcept { return appliedBit0Us; }
+uint32_t BoosterCore::profileApplications() const noexcept { return appliedProfileCount; }
+uint32_t BoosterCore::cutoutsApplied() const noexcept { return appliedCutoutCount; }
+uint32_t BoosterCore::cutoutsRejectedRange() const noexcept { return rejectedCutoutRangeCount; }
+uint32_t BoosterCore::cutoutsSkipped() const noexcept { return skippedCutoutCount; }
+uint16_t BoosterCore::lastCutoutAppliedUs() const noexcept { return lastAppliedCutoutUs; }
+bool BoosterCore::lastCutoutWasMeasured() const noexcept { return lastCutoutMeasured; }

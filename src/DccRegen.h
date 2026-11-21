@@ -26,7 +26,11 @@ public:
     bool begin();
     bool busy();
     size_t emit(const uint8_t *bits, size_t n);
+    bool setHalfBitUs(uint8_t halfBit1Us, uint8_t halfBit0Us);
 
 private:
     static constexpr size_t MAX_EMIT = 32; // 32 bits = 64 items par appel max
+    static constexpr uint8_t RMT_TICKS_PER_US = 40; // tick RMT = 25 ns
+    uint16_t m_halfBit1Ticks = TICKS_HALF_ONE;
+    uint16_t m_halfBit0Ticks = TICKS_HALF_ZER;
 };

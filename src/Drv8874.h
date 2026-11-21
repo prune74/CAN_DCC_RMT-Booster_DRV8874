@@ -22,8 +22,8 @@ public:
 
     // IPROPI : I = V / (R_IPROPI * AIPROPI)  -- datasheet SLVSF66A eq.1/2
     uint16_t readCurrent_mA();
-    // Tension voie via pont diviseur R1/R2
-    uint16_t readVoltage_mV();
+    // Tension à la sortie alimentation via le diviseur R1/R2; pas la voie DCC.
+    uint16_t readSupplyVoltage_mV();
 
 private:
     void coast();

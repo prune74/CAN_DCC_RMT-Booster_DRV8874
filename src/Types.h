@@ -12,7 +12,7 @@ enum class BoosterState : uint8_t {
 
 struct BoosterTelemetry {
     uint16_t     current_mA = 0;
-    uint16_t     voltage_mV = 0;
+    uint16_t     voltage_mV = 0; // tension mesurée côté sortie alim, pas aux bornes voie
     uint16_t     railcomAddress = 0; // 0 = aucune adresse détectée
     BoosterState state      = BoosterState::OFF;
 };

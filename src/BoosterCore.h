@@ -31,6 +31,16 @@ public:
     bool isPowerEnabled() const noexcept;
     bool hasBoosterId() const noexcept;
     uint8_t boosterId() const noexcept;
+    bool hasAppliedDccProfile() const noexcept;
+    uint16_t appliedProfileSequence() const noexcept;
+    uint8_t appliedHalfBit1Us() const noexcept;
+    uint8_t appliedHalfBit0Us() const noexcept;
+    uint32_t profileApplications() const noexcept;
+    uint32_t cutoutsApplied() const noexcept;
+    uint32_t cutoutsRejectedRange() const noexcept;
+    uint32_t cutoutsSkipped() const noexcept;
+    uint16_t lastCutoutAppliedUs() const noexcept;
+    bool lastCutoutWasMeasured() const noexcept;
 
     const BoosterTelemetry &getTelemetry() const;
     DccCanRx &getCanRx();
@@ -48,4 +58,14 @@ private:
     bool powerEnabled = false;
     uint8_t assignedBoosterId = CFG_CANTON_ID_UNASSIGNED;
     uint32_t localFaultSinceMs = 0;
+    bool profileApplied = false;
+    uint16_t appliedProfileSeq = 0;
+    uint8_t appliedBit1Us = 58;
+    uint8_t appliedBit0Us = 100;
+    uint32_t appliedProfileCount = 0;
+    uint32_t appliedCutoutCount = 0;
+    uint32_t rejectedCutoutRangeCount = 0;
+    uint32_t skippedCutoutCount = 0;
+    uint16_t lastAppliedCutoutUs = 0;
+    bool lastCutoutMeasured = false;
 };

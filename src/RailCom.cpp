@@ -25,7 +25,7 @@ bool RailCom::begin() {
     return uart_driver_install(UART_NUM_2, 256, 0, 0, nullptr, 0) == ESP_OK;
 }
 
-// Bloquant ~488 µs, une fois par trame DCC (~30 ms) — sans effet sur le
+// Bloquant window_us, une fois par trame DCC (~30 ms) — sans effet sur le
 // créneau DCC, émis par le RMT en matériel pendant ce temps.
 uint16_t RailCom::capture(uint32_t window_us) {
     uart_flush_input(UART_NUM_2);

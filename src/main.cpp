@@ -5,12 +5,72 @@
 #include "StatusLeds.h"
 #include "CanBooster.h"
 #include "BoosterUartLink.h"
+#include <string.h>
 
 BoosterCore  booster;
 CanBooster   canLink;
 StatusLeds   leds;
 Telemetry    telemetry(booster, &CanBooster::sendFrame);
 BoosterUartLink uartLink;
+
+static void printDccDiagnostics() {
+    DccCanRx &rx = booster.getCanRx();
+    Serial.println("--- Diagnostic DCC booster ---");
+    if (rx.hasDccProfile()) {
+        Serial.printf("Profil 0x104 reçu: oui; seq=%u; âge=%lu ms; MAIN=%s; demi-bits reçus=%u/%u µs\n",
+                      static_cast<unsigned>(rx.profileSequence()), (unsigned long)rx.profileAgeMs(),
+                      rx.dccMainOn() ? "ON" : "OFF", static_cast<unsigned>(rx.halfBit1Us()),
+                      static_cast<unsigned>(rx.halfBit0Us()));
+    } else {
+        Serial.println("Profil 0x104 reçu: non; repli configuré=58/100 µs");
+    }
+    Serial.printf("Profil LaBox appliqué au RMT: %s; seq=%u; valeurs RMT=%u/%u µs; applications=%lu; trames valides/invalides=%lu/%lu\n",
+                  booster.hasAppliedDccProfile() ? "oui" : "non",
+                  static_cast<unsigned>(booster.appliedProfileSequence()),
+                  static_cast<unsigned>(booster.appliedHalfBit1Us()),
+                  static_cast<unsigned>(booster.appliedHalfBit0Us()),
+                  (unsigned long)booster.profileApplications(),
+                  (unsigned long)rx.profileValidFrames(),
+                  (unsigned long)rx.profileInvalidFrames());
+    Serial.printf("Cutout 0x101: START reçus=%lu; appliqués=%lu; dernier reçu=",
+                  (unsigned long)rx.cutoutStartsReceived(),
+                  (unsigned long)booster.cutoutsApplied());
+    if (rx.lastCutoutReceivedMeasured())
+        Serial.printf("%u µs", static_cast<unsigned>(rx.lastCutoutReceivedUs()));
+    else
+        Serial.print("durée absente (ancien DLC 2)");
+    if (booster.cutoutsApplied() > 0)
+        Serial.printf("; dernier appliqué=%u µs (%s)",
+                      static_cast<unsigned>(booster.lastCutoutAppliedUs()),
+                      booster.lastCutoutWasMeasured() ? "mesuré" : "repli DLC 2");
+    else
+        Serial.print("; aucun cutout appliqué depuis le démarrage");
+    Serial.printf("; hors plage=%lu; ignorés état/portée=%lu; malformés=%lu; FIFO perdus=%lu\n",
+                  (unsigned long)booster.cutoutsRejectedRange(),
+                  (unsigned long)booster.cutoutsSkipped(),
+                  (unsigned long)rx.cutoutMalformedFrames(),
+                  (unsigned long)rx.cutoutQueueDrops());
+}
+
+static void pollDiagnosticConsole() {
+    static char line[24];
+    static size_t length = 0;
+    while (Serial.available() > 0) {
+        const char c = static_cast<char>(Serial.read());
+        if (c == '\r') continue;
+        if (c == '\n') {
+            line[length] = '\0';
+            if (strcmp(line, "diag") == 0) printDccDiagnostics();
+            else if (strcmp(line, "help") == 0 || length > 0)
+                Serial.println("Commandes: diag (profil DCC et cutouts); help");
+            length = 0;
+        } else if (length + 1 < sizeof(line)) {
+            line[length++] = c;
+        } else {
+            length = 0;
+        }
+    }
+}
 
 void setup() {
     Serial.begin(115200);
@@ -23,6 +83,7 @@ void setup() {
 }
 
 void loop() {
+    pollDiagnosticConsole();
     canLink.poll();       // pompe le CAN → décodage 0x100/0x101
     booster.update();     // failsafe + sécurité + cutout + flux RMT
     uartLink.update(booster); // commandes, heartbeat et mesures à 1 kHz

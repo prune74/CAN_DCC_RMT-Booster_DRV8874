@@ -18,7 +18,8 @@ static const int PIN_DRV_IN1     = 32;    // DCC RMT canal 5 → IN1
 static const int PIN_DRV_IN2     = 33;    // même signal, inversé via matrice GPIO → IN2
 static const int PIN_DRV_NSLEEP = 27;     // Veille driver (1 = actif)
 static const int PIN_DRV_IPROPI = 34;     // ADC IPROPI (courant voie) via R 3,6 kΩ → GND
-static const int PIN_VRAIL      = 35;     // ADC pont diviseur 68 kΩ / 10 kΩ (tension voie)
+static const int PIN_SUPPLY_SENSE = 35;  // ADC: sortie alimentation, pas la voie après DRV8874
+static const int PIN_DCC_CAPTURE = 25;   // Entrée logique isolée; capture à définir (RMT RX à étudier)
 
 // --- RailCom (sortie logique isolée du front-end carte) ---
 static const int PIN_RAILCOM_ISO = 36;    // UART2 RX via matrice (input-only OK)

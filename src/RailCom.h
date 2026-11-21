@@ -27,7 +27,7 @@ class RailCom {
 public:
     bool begin();
 
-    // Appelé par BoosterCore pendant le cutout (EN=0, ~488 µs).
+    // Appelé par BoosterCore pendant la fenêtre cutout transmise (durée en µs).
     // Retourne l'adresse (0 = rien détecté).
     uint16_t capture(uint32_t window_us);
 

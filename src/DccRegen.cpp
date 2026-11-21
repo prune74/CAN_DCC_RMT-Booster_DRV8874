@@ -20,11 +20,19 @@ size_t DccRegen::emit(const uint8_t *bits, size_t n) {
     size_t k = 0;
     if (n > MAX_EMIT) n = MAX_EMIT;
     for (size_t i = 0; i < n; i++) {
-        const uint16_t t = bits[i] ? TICKS_HALF_ONE : TICKS_HALF_ZER;
+        const uint16_t t = bits[i] ? m_halfBit1Ticks : m_halfBit0Ticks;
         items[k].level0 = 0; items[k].duration0 = t;
         items[k].level1 = 1; items[k].duration1 = t;
         k++;
     }
     return (rmt_write_items((rmt_channel_t)RMT_DCC_CHANNEL, items, k, false) == ESP_OK)
            ? n : 0;
+}
+
+bool DccRegen::setHalfBitUs(uint8_t halfBit1Us, uint8_t halfBit0Us) {
+    if (halfBit1Us == 0 || halfBit0Us == 0 || halfBit1Us >= halfBit0Us)
+        return false;
+    m_halfBit1Ticks = static_cast<uint16_t>(halfBit1Us) * RMT_TICKS_PER_US;
+    m_halfBit0Ticks = static_cast<uint16_t>(halfBit0Us) * RMT_TICKS_PER_US;
+    return true;
 }
