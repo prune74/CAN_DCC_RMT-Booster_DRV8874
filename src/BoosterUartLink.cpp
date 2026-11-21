@@ -9,6 +9,7 @@ namespace
 constexpr uint32_t UART_BAUD = 460800;
 constexpr uint32_t HEARTBEAT_TIMEOUT_MS = 250;
 constexpr uint32_t SAMPLE_PERIOD_US = 1000;
+constexpr uint32_t DIAGNOSTIC_RETRY_MS = 100;
 
 constexpr uint8_t ACK_OK = 0;
 constexpr uint8_t ACK_INVALID = 1;
@@ -45,6 +46,7 @@ void BoosterUartLink::update(BoosterCore &booster)
     }
 
     sendRailCom(booster);
+    updateDccDiagnostic(booster, nowMs);
 }
 
 void BoosterUartLink::receive(BoosterCore &booster)
@@ -132,6 +134,19 @@ void BoosterUartLink::handleFrame(
         booster.setDccReference(frame.payload, frame.length);
         break;
 
+    case BoosterUart::Type::ACK:
+        if (frame.length == 4 && m_diagnosticPending &&
+            frame.payload[0] == static_cast<uint8_t>(BoosterUart::Type::DCC_DIAGNOSTIC) &&
+            static_cast<uint16_t>(frame.payload[1] |
+                (static_cast<uint16_t>(frame.payload[2]) << 8)) ==
+                m_pendingDiagnosticFrame.sequence && frame.payload[3] == ACK_OK)
+        {
+            m_reportedDiagnosticCause = m_pendingDiagnosticFrame.payload[1];
+            m_reportedDiagnosticActive = m_pendingDiagnosticFrame.payload[2] != 0;
+            m_diagnosticPending = false;
+        }
+        break;
+
     default:
         break;
     }
@@ -160,6 +175,46 @@ bool BoosterUartLink::sendFrame(const BoosterUart::Frame &frame)
     if (length == 0 || Serial1.availableForWrite() < static_cast<int>(length))
         return false;
     return Serial1.write(buffer, length) == length;
+}
+
+void BoosterUartLink::updateDccDiagnostic(const BoosterCore &booster,
+                                          uint32_t nowMs)
+{
+    if (!booster.hasBoosterId()) return;
+
+    if (!m_diagnosticPending) {
+        const uint8_t desiredCause = static_cast<uint8_t>(booster.dccFaultCause());
+        const bool desiredActive = desiredCause != 0;
+        if (desiredCause != m_reportedDiagnosticCause ||
+            desiredActive != m_reportedDiagnosticActive) {
+            BoosterUart::Frame &frame = m_pendingDiagnosticFrame;
+            frame = BoosterUart::Frame{};
+            frame.type = static_cast<uint8_t>(BoosterUart::Type::DCC_DIAGNOSTIC);
+            frame.sequence = m_txSequence++;
+            frame.length = 8;
+            frame.payload[0] = booster.boosterId();
+            frame.payload[1] = desiredActive ? desiredCause : m_reportedDiagnosticCause;
+            frame.payload[2] = desiredActive ? 1 : 0;
+            const bool hasSequence = desiredActive &&
+                desiredCause == static_cast<uint8_t>(cfc::dcc::BoosterDccCause::SEQUENCE_GAP);
+            const uint16_t expected = hasSequence
+                ? booster.getCanRx().faultExpectedSequence() : 0;
+            const uint16_t received = hasSequence
+                ? booster.getCanRx().faultReceivedSequence() : 0;
+            frame.payload[3] = hasSequence ? 0x01 : 0;
+            frame.payload[4] = static_cast<uint8_t>(expected & 0xFFU);
+            frame.payload[5] = static_cast<uint8_t>(expected >> 8);
+            frame.payload[6] = static_cast<uint8_t>(received & 0xFFU);
+            frame.payload[7] = static_cast<uint8_t>(received >> 8);
+            m_diagnosticPending = true;
+            m_lastDiagnosticTxMs = nowMs - DIAGNOSTIC_RETRY_MS;
+        }
+    }
+
+    if (m_diagnosticPending &&
+        nowMs - m_lastDiagnosticTxMs >= DIAGNOSTIC_RETRY_MS &&
+        sendFrame(m_pendingDiagnosticFrame))
+        m_lastDiagnosticTxMs = nowMs;
 }
 
 void BoosterUartLink::sendSample(BoosterCore &booster)

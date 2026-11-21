@@ -52,9 +52,11 @@ public:
     uint32_t cutoutsSkipped() const noexcept;
     uint16_t lastCutoutAppliedUs() const noexcept;
     bool lastCutoutWasMeasured() const noexcept;
+    cfc::dcc::BoosterDccCause dccFaultCause() const noexcept;
 
     const BoosterTelemetry &getTelemetry() const;
     DccCanRx &getCanRx();
+    const DccCanRx &getCanRx() const;
     Drv8874 &getDrv();
 
 private:
@@ -90,4 +92,5 @@ private:
     uint32_t skippedCutoutCount = 0;
     uint16_t lastAppliedCutoutUs = 0;
     bool lastCutoutMeasured = false;
+    bool generatorFault = false;
 };

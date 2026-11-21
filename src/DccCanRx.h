@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include "Config.h"
 #include "Types.h"
+#include <CfcDccProtocol.h>
 
 // ============================================================
 // DccCanRx — décodage des trames CAN du protocole DCC_CAN_RMT-Booster
@@ -34,6 +35,9 @@ public:
     bool peekEvent(DccCanEvent &event) const;
     bool popEvent(DccCanEvent &event);
     bool dccAlive() const;
+    cfc::dcc::BoosterDccCause faultCause() const;
+    uint16_t faultExpectedSequence() const;
+    uint16_t faultReceivedSequence() const;
     uint32_t cutoutStartsReceived() const;
     uint16_t lastCutoutReceivedUs() const;
     bool lastCutoutReceivedMeasured() const;
@@ -43,7 +47,7 @@ public:
     uint32_t blocksSeen = 0;
 
 private:
-    void markStreamFault();
+    void markStreamFault(cfc::dcc::BoosterDccCause cause);
     void pushBit(uint8_t encoded, bool packetStart);
     void pushCutout(bool global, uint16_t intervalUs, bool measured);
 
@@ -58,6 +62,9 @@ private:
     uint32_t malformedFrames = 0;
     uint32_t sequenceGaps = 0;
     uint16_t expectedSequence = 0;
+    uint16_t faultExpectedSequenceValue = 0;
+    uint16_t faultReceivedSequenceValue = 0;
+    cfc::dcc::BoosterDccCause activeFaultCause = cfc::dcc::BoosterDccCause::NONE;
     bool haveSequence = false;
     bool streamFault = false;
 };

@@ -21,10 +21,11 @@ sortie; la reprise attend aussi un début de paquet reconnu. La sortie est
 également coupée après 50 ms sans enregistrement valide. Ce délai est défini
 par le protocole, mais reste à confirmer sur banc.
 
-La télémétrie historique `0x102` est encore émise par ce firmware sur le CAN
-local pour l’intégration actuelle avec l’EXCC/convertisseur. Son remplacement
-par la supervision `0xB6` sur CAN Service reste à intégrer avant que le CAN
-Booster ne transporte réellement `0x100` seulement.
+Le Booster émet maintenant son diagnostic DCC en UART `DCC_DIAGNOSTIC (0x12)`;
+l’EXCC l’acquitte et le joint aux informations `BOOSTER_INFO`, puis le CC
+publie `BOOSTER_SUPERVISION (0xB6)` sur CAN Service. La télémétrie `0x102` a
+été retirée du CAN Booster; son état est transmis sous `0xB6`, et le flux
+`0x100` est maintenant le seul message émis sur le CAN Booster.
 
 ## Référence DCC par UART
 

@@ -1,7 +1,7 @@
 #pragma once
 #include <stdint.h>
 
-// États de la trame 0x102 — codes imposés par DCC_CAN_RMT-Booster
+// États de supervision du booster, transmis à l’EXCC par UART
 enum class BoosterState : uint8_t {
     OK        = 0,
     FAULT     = 1,

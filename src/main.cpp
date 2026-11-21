@@ -1,7 +1,6 @@
 #include <Arduino.h>
 #include "Config.h"
 #include "BoosterCore.h"
-#include "Telemetry.h"
 #include "StatusLeds.h"
 #include "CanBooster.h"
 #include "BoosterUartLink.h"
@@ -10,7 +9,6 @@
 BoosterCore  booster;
 CanBooster   canLink;
 StatusLeds   leds;
-Telemetry    telemetry(booster, &CanBooster::sendFrame);
 BoosterUartLink uartLink;
 
 static void printDccDiagnostics() {
@@ -91,6 +89,5 @@ void loop() {
     canLink.poll();       // pompe le CAN → décodage du flux 0x100 v0.4.0
     booster.update();     // failsafe + sécurité + cutout + flux RMT
     uartLink.update(booster); // commandes, heartbeat et mesures à 1 kHz
-    telemetry.update();   // trame 0x102 toutes les 1 s
     leds.update(booster); // WS2812 non bloquant
 }

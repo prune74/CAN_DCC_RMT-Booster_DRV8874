@@ -16,12 +16,19 @@ private:
     bool sendFrame(const BoosterUart::Frame &frame);
     void sendSample(BoosterCore &booster);
     void sendRailCom(const BoosterCore &booster);
+    void updateDccDiagnostic(const BoosterCore &booster, uint32_t nowMs);
+    void sendPendingDccDiagnostic(uint32_t nowMs);
 
     BoosterUart::Parser m_parser;
     uint16_t m_txSequence = 0;
     uint32_t m_lastHeartbeatMs = 0;
     uint32_t m_lastSampleUs = 0;
     uint16_t m_lastRailcomAddress = 0;
+    BoosterUart::Frame m_pendingDiagnosticFrame{};
+    uint32_t m_lastDiagnosticTxMs = 0;
+    uint8_t m_reportedDiagnosticCause = 0;
+    bool m_reportedDiagnosticActive = false;
+    bool m_diagnosticPending = false;
     bool m_heartbeatSeen = false;
     bool m_timeoutApplied = false;
 };

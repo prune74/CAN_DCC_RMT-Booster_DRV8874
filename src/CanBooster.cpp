@@ -1,6 +1,5 @@
 #include "CanBooster.h"
 #include <CanUniversal.h>
-#include <string.h> // memcpy
 
 // ============================================================
 // Implémentation CanBooster
@@ -21,13 +20,4 @@ void CanBooster::poll() {
         if (!msg.is11()) continue;
         core->onCanMessage(static_cast<uint16_t>(msg.id), msg.data, msg.dlc);
     }
-}
-
-// Callback de Telemetry : émission 0x102 via CanMsg (champs publics)
-bool CanBooster::sendFrame(uint16_t id, const uint8_t *data, uint8_t len) {
-    CanMsg msg;
-    msg.id = id;
-    msg.dlc = len;
-    memcpy(msg.data, data, len);
-    return CanBus::bus(0).send(msg); // false : case TX pleine, sera retenté
 }

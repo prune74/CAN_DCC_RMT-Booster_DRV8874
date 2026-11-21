@@ -123,6 +123,13 @@ void BoosterCore::update()
         return;
     }
 
+    if (!powerEnabled)
+    {
+        if (drv.isEnabled())
+            shutdown(BoosterState::OFF);
+        return;
+    }
+
     // La référence et MAIN proviennent du 0xB7 relayé par UART, pas du CAN
     // Booster. Une référence absente, invalide ou périmée interdit la sortie.
     if (!dccReferenceFresh())
@@ -163,13 +170,6 @@ void BoosterCore::update()
         }
     }
     appliedProfileSeq = dccRefSeq;
-
-    if (!powerEnabled)
-    {
-        if (drv.isEnabled())
-            shutdown(BoosterState::OFF);
-        return;
-    }
 
     // --- 1. Failsafe : DCC perdu → coupe immédiate ---
     if (!canRx.dccAlive())
@@ -213,6 +213,8 @@ void BoosterCore::update()
            event.type == DccCanEventType::BIT)
     {
         canRx.popEvent(event);
+        if (event.packetStart)
+            generatorFault = false;
         bits[n++] = event.encoded & 0x01; // la phase n'affecte pas la valeur du bit
     }
     if (n > 0)
@@ -222,8 +224,10 @@ void BoosterCore::update()
 
         if (regen.emit(bits, n) == 0)
         {
-            // Ring buffer plein : on retentera au prochain update()
-            // (les bits perdus sont dans la FIFO… les remettre = v2)
+            generatorFault = true;
+            localFaultSinceMs = millis();
+            shutdown(BoosterState::FAULT);
+            return;
         }
         if (telemetry.state != BoosterState::FAULT)
             telemetry.state = BoosterState::OK;
@@ -272,6 +276,7 @@ void BoosterCore::sampleSensors()
 
 const BoosterTelemetry &BoosterCore::getTelemetry() const { return telemetry; }
 DccCanRx &BoosterCore::getCanRx() { return canRx; }
+const DccCanRx &BoosterCore::getCanRx() const { return canRx; }
 Drv8874 &BoosterCore::getDrv() { return drv; }
 bool BoosterCore::hasAppliedDccProfile() const noexcept { return profileApplied; }
 uint16_t BoosterCore::appliedProfileSequence() const noexcept { return appliedProfileSeq; }
@@ -302,3 +307,18 @@ uint32_t BoosterCore::cutoutsRejectedRange() const noexcept { return rejectedCut
 uint32_t BoosterCore::cutoutsSkipped() const noexcept { return skippedCutoutCount; }
 uint16_t BoosterCore::lastCutoutAppliedUs() const noexcept { return lastAppliedCutoutUs; }
 bool BoosterCore::lastCutoutWasMeasured() const noexcept { return lastCutoutMeasured; }
+cfc::dcc::BoosterDccCause BoosterCore::dccFaultCause() const noexcept
+{
+    using cfc::dcc::BoosterDccCause;
+    if (!hasBoosterId() || !powerEnabled ||
+        (dccReferenceFresh() && !dccRefMainOn))
+        return BoosterDccCause::NONE;
+    if (generatorFault) return BoosterDccCause::GENERATOR_ERROR;
+    if (!dccReferenceFresh()) {
+        if (!dccRefReceived) return BoosterDccCause::PROFILE_MISSING;
+        if (!dccRefValid) return BoosterDccCause::PROFILE_INVALID;
+        return BoosterDccCause::PROFILE_STALE;
+    }
+    if (!dccRefMainOn) return BoosterDccCause::NONE;
+    return canRx.faultCause();
+}

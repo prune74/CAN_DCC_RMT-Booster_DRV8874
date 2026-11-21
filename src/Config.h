@@ -1,7 +1,6 @@
 #pragma once
 #include <cstdint>
 #include "Pins.h"
-#include <CfcDiscoveryProtocol.h>
 
 // ======================================================================================
 // CAN_DCC_RMT-BoosterDRV8874 — Configuration carte des Chemins de Fer du Chablais (CFC)
@@ -12,7 +11,6 @@
 // --- Identité reçue du CC via l'EXCC ---
 static constexpr uint8_t CFG_MAX_CANTON_ID = 252;
 static constexpr uint8_t CFG_CANTON_ID_UNASSIGNED = 0xFF;
-static const uint8_t  CFG_BOOSTER_TYPE = static_cast<uint8_t>(cfc::discovery::NodeType::BOOSTER);
 
 // --- Bus CAN (identique au convertisseur) ---
 static const uint32_t CFG_CAN_BITRATE = 500000; // 500 kbit/s
@@ -22,7 +20,6 @@ static const uint32_t CFG_FAILSAFE_MS    = 50;    // v0.4.0 : aucun enregistreme
 static const uint16_t CFG_MAX_CURRENT_MA = 2000;  // Limite voie 2 A (RIPROPI 3,6 kΩ = pleine échelle ADC)
 static const uint16_t CFG_MIN_SUPPLY_VOLTAGE_MV = 9000; // Sous-tension alimentation → FAULT
 static constexpr uint32_t CFG_FAULT_RETRY_DELAY_MS = 100; // pause avant tentative locale
-static constexpr uint32_t CFG_TELEMETRY_HEARTBEAT_MS = 5000; // présence CAN
 
 // Mesure courant via IPROPI (datasheet SLVSF66A eq.1/2) :
 //   I = V_IPROPI / (R_IPROPI * AIPROPI)

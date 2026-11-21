@@ -14,10 +14,10 @@ void DccCanRx::begin() {
 void DccCanRx::onCanMessage(uint16_t id, const uint8_t *data, uint8_t len) {
     if (id != CAN_BOOSTER_STREAM_ID) return;
     if (millis() - lastBlockMs >= BOOSTER_NO_BLOCK_FAILSAFE_MS)
-        markStreamFault();
+        markStreamFault(BoosterDccCause::STREAM_TIMEOUT);
     if (data == nullptr || len < STREAM_DLC_DCC_1_TO_8_BITS ||
         data[0] != STREAM_MAGIC) {
-        markStreamFault();
+        markStreamFault(BoosterDccCause::MALFORMED_STREAM_FRAME);
         malformedFrames++;
         return;
     }
@@ -30,7 +30,9 @@ void DccCanRx::onCanMessage(uint16_t id, const uint8_t *data, uint8_t len) {
 
     bool sequenceOk = !haveSequence || sequence == expectedSequence;
     if (!sequenceOk) {
-        markStreamFault();
+        faultExpectedSequenceValue = expectedSequence;
+        faultReceivedSequenceValue = sequence;
+        markStreamFault(BoosterDccCause::SEQUENCE_GAP);
         sequenceGaps++;
         expectedSequence = static_cast<uint16_t>(sequence + 1);
         haveSequence = true;
@@ -46,7 +48,7 @@ void DccCanRx::onCanMessage(uint16_t id, const uint8_t *data, uint8_t len) {
             : (n >= 9 && n <= MAX_DCC_BITS_PER_BLOCK
                 ? STREAM_DLC_DCC_9_TO_16_BITS : 0);
         if (requiredDlc == 0 || len != requiredDlc) {
-            markStreamFault();
+            markStreamFault(BoosterDccCause::MALFORMED_STREAM_FRAME);
             malformedFrames++;
             return;
         }
@@ -55,12 +57,17 @@ void DccCanRx::onCanMessage(uint16_t id, const uint8_t *data, uint8_t len) {
             : (n < 16 && (data[5] & static_cast<uint8_t>((1u << (16 - n)) - 1u)) != 0);
         const bool packetStartNotZero = packetStart && (data[4] & 0x80) != 0;
         if (unusedBitsNonZero || packetStartNotZero) {
-            markStreamFault();
+            markStreamFault(BoosterDccCause::MALFORMED_STREAM_FRAME);
             malformedFrames++;
             return;
         }
         if (streamFault && !packetStart) return;
-        if (packetStart) streamFault = false;
+        if (packetStart) {
+            streamFault = false;
+            activeFaultCause = BoosterDccCause::NONE;
+            faultExpectedSequenceValue = 0;
+            faultReceivedSequenceValue = 0;
+        }
         for (uint8_t i = 0; i < n; i++) {
             const uint8_t packed = data[4 + (i / 8)];
             const uint8_t bit = (packed >> (7 - (i % 8))) & 1;
@@ -74,7 +81,7 @@ void DccCanRx::onCanMessage(uint16_t id, const uint8_t *data, uint8_t len) {
 
     if (type == (static_cast<uint8_t>(StreamRecordType::CUTOUT) << 6)) {
         if (len != STREAM_DLC_CUTOUT) {
-            markStreamFault();
+            markStreamFault(BoosterDccCause::MALFORMED_STREAM_FRAME);
             malformedFrames++;
             malformedCutoutFrames++;
             return;
@@ -86,7 +93,7 @@ void DccCanRx::onCanMessage(uint16_t id, const uint8_t *data, uint8_t len) {
         if (n != 0 || packetStart ||
             (flags & static_cast<uint8_t>(~allowedFlags)) != 0 ||
             (flags & allowedFlags) == 0) {
-            markStreamFault();
+            markStreamFault(BoosterDccCause::MALFORMED_STREAM_FRAME);
             malformedFrames++;
             malformedCutoutFrames++;
             return;
@@ -102,7 +109,7 @@ void DccCanRx::onCanMessage(uint16_t id, const uint8_t *data, uint8_t len) {
         return;
     }
 
-    markStreamFault();
+    markStreamFault(BoosterDccCause::MALFORMED_STREAM_FRAME);
     malformedFrames++;
 }
 
@@ -124,8 +131,20 @@ bool DccCanRx::dccAlive() const {
     return !streamFault && (millis() - lastBlockMs) < BOOSTER_NO_BLOCK_FAILSAFE_MS;
 }
 
-void DccCanRx::markStreamFault() {
+BoosterDccCause DccCanRx::faultCause() const {
+    if (activeFaultCause != BoosterDccCause::NONE) return activeFaultCause;
+    if (millis() - lastBlockMs >= BOOSTER_NO_BLOCK_FAILSAFE_MS)
+        return BoosterDccCause::STREAM_TIMEOUT;
+    return BoosterDccCause::NONE;
+}
+
+uint16_t DccCanRx::faultExpectedSequence() const { return faultExpectedSequenceValue; }
+uint16_t DccCanRx::faultReceivedSequence() const { return faultReceivedSequenceValue; }
+
+void DccCanRx::markStreamFault(BoosterDccCause cause) {
     streamFault = true;
+    if (activeFaultCause == BoosterDccCause::NONE)
+        activeFaultCause = cause;
     head = 0;
     count = 0;
 }
@@ -137,7 +156,7 @@ uint32_t DccCanRx::cutoutQueueDrops() const { return droppedCutoutEvents; }
 
 void DccCanRx::pushBit(uint8_t bit, bool packetStart) {
     if (count >= FIFO_SIZE) {
-        markStreamFault();
+        markStreamFault(BoosterDccCause::GENERATOR_ERROR);
         return;
     }
     DccCanEvent &event = fifo[(head + count) % FIFO_SIZE];
@@ -153,7 +172,7 @@ void DccCanRx::pushBit(uint8_t bit, bool packetStart) {
 void DccCanRx::pushCutout(bool global, uint16_t intervalUs, bool measured) {
     if (count >= FIFO_SIZE) {
         droppedCutoutEvents++;
-        markStreamFault();
+        markStreamFault(BoosterDccCause::GENERATOR_ERROR);
         return;
     }
     DccCanEvent &event = fifo[(head + count) % FIFO_SIZE];
