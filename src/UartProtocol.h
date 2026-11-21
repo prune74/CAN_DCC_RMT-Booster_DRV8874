@@ -22,6 +22,7 @@ enum class Type : uint8_t
     SET_PROFILE = 0x03,
     ACK = 0x04,
     SET_CANTON_ID = 0x05,
+    DCC_REFERENCE = 0x06,
     SAMPLE = 0x10,
     RAILCOM = 0x11
 };

@@ -25,6 +25,7 @@ public:
     void sampleSensors();
     void setPowerEnabled(bool enabled);
     bool setBoosterId(uint8_t id);
+    bool setDccReference(const uint8_t *data, uint8_t len);
 
     // Gestion du profil de tension (HO/N)
     void setTrackProfile(bool ho) noexcept;
@@ -33,6 +34,16 @@ public:
     uint8_t boosterId() const noexcept;
     bool hasAppliedDccProfile() const noexcept;
     uint16_t appliedProfileSequence() const noexcept;
+    bool hasDccReference() const noexcept;
+    bool dccReferenceValid() const noexcept;
+    bool dccReferenceFresh() const noexcept;
+    bool dccReferenceMainOn() const noexcept;
+    uint16_t dccReferenceSequence() const noexcept;
+    uint32_t dccReferenceAgeMs() const noexcept;
+    uint8_t dccReferenceHalfBit1Us() const noexcept;
+    uint8_t dccReferenceHalfBit0Us() const noexcept;
+    uint32_t dccReferenceValidFrames() const noexcept;
+    uint32_t dccReferenceInvalidFrames() const noexcept;
     uint8_t appliedHalfBit1Us() const noexcept;
     uint8_t appliedHalfBit0Us() const noexcept;
     uint32_t profileApplications() const noexcept;
@@ -60,6 +71,17 @@ private:
     uint32_t localFaultSinceMs = 0;
     bool profileApplied = false;
     uint16_t appliedProfileSeq = 0;
+    bool dccRefReceived = false;
+    bool dccRefValid = false;
+    bool dccRefMainOn = false;
+    uint16_t dccRefSeq = 0;
+    uint8_t dccRefHalfBit1Us = 0;
+    uint8_t dccRefHalfBit0Us = 0;
+    uint8_t dccRefTickUs = 0;
+    uint8_t dccRefPreambleBits = 0;
+    uint32_t lastValidDccReferenceMs = 0;
+    uint32_t validDccReferenceFrames = 0;
+    uint32_t invalidDccReferenceFrames = 0;
     uint8_t appliedBit1Us = 58;
     uint8_t appliedBit0Us = 100;
     uint32_t appliedProfileCount = 0;

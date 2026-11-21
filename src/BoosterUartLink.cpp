@@ -125,6 +125,13 @@ void BoosterUartLink::handleFrame(
         }
         break;
 
+    case BoosterUart::Type::DCC_REFERENCE:
+        // Le payload est le profil LaBox 0xB7 relayé sans modification par
+        // l’EXCC. Les profils invalides sont conservés comme défaut, sans
+        // renouveler la fraîcheur de la dernière référence valide.
+        booster.setDccReference(frame.payload, frame.length);
+        break;
+
     default:
         break;
     }

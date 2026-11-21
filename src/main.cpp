@@ -16,13 +16,17 @@ BoosterUartLink uartLink;
 static void printDccDiagnostics() {
     DccCanRx &rx = booster.getCanRx();
     Serial.println("--- Diagnostic DCC booster ---");
-    if (rx.hasDccProfile()) {
-        Serial.printf("Profil 0x104 reçu: oui; seq=%u; âge=%lu ms; MAIN=%s; demi-bits reçus=%u/%u µs\n",
-                      static_cast<unsigned>(rx.profileSequence()), (unsigned long)rx.profileAgeMs(),
-                      rx.dccMainOn() ? "ON" : "OFF", static_cast<unsigned>(rx.halfBit1Us()),
-                      static_cast<unsigned>(rx.halfBit0Us()));
+    if (booster.hasDccReference()) {
+        Serial.printf("Profil UART DCC_REFERENCE 0x06 reçu: oui; valide=%s; frais=%s; seq=%u; âge=%lu ms; MAIN=%s; demi-bits=%u/%u µs\n",
+                      booster.dccReferenceValid() ? "oui" : "non",
+                      booster.dccReferenceFresh() ? "oui" : "non",
+                      static_cast<unsigned>(booster.dccReferenceSequence()),
+                      (unsigned long)booster.dccReferenceAgeMs(),
+                      booster.dccReferenceMainOn() ? "ON" : "OFF",
+                      static_cast<unsigned>(booster.dccReferenceHalfBit1Us()),
+                      static_cast<unsigned>(booster.dccReferenceHalfBit0Us()));
     } else {
-        Serial.println("Profil 0x104 reçu: non; repli configuré=58/100 µs");
+        Serial.println("Profil UART DCC_REFERENCE 0x06 reçu: non; sortie interdite");
     }
     Serial.printf("Profil LaBox appliqué au RMT: %s; seq=%u; valeurs RMT=%u/%u µs; applications=%lu; trames valides/invalides=%lu/%lu\n",
                   booster.hasAppliedDccProfile() ? "oui" : "non",
@@ -30,8 +34,8 @@ static void printDccDiagnostics() {
                   static_cast<unsigned>(booster.appliedHalfBit1Us()),
                   static_cast<unsigned>(booster.appliedHalfBit0Us()),
                   (unsigned long)booster.profileApplications(),
-                  (unsigned long)rx.profileValidFrames(),
-                  (unsigned long)rx.profileInvalidFrames());
+                  (unsigned long)booster.dccReferenceValidFrames(),
+                  (unsigned long)booster.dccReferenceInvalidFrames());
     Serial.printf("Cutout 0x101: START reçus=%lu; appliqués=%lu; dernier reçu=",
                   (unsigned long)rx.cutoutStartsReceived(),
                   (unsigned long)booster.cutoutsApplied());

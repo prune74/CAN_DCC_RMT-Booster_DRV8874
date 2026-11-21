@@ -22,10 +22,6 @@
 //   0x102 : télémétrie sur le CAN local ; elle n'intervient pas dans les
 //     décisions de ce booster (la supervision remonte par UART à l'EXCC).
 //
-//   0x104 : profil DCC relayé par le convertisseur, DLC 8 :
-//     {version, séquence_LE16, flags, demi-bit1_us, demi-bit0_us,
-//      tick_ref_us, préambule_MAIN}. Les durées de bits servent à la RMT TX.
-//
 //   Le convertisseur envoie le flux au fil de l'eau. Blocs et START cutout
 //   sont conservés dans une FIFO ordonnée que le Core vide vers le RMT.
 // ============================================================
@@ -47,10 +43,6 @@ class DccCanRx {
 public:
     static constexpr uint16_t DCC_BLOCK_ID  = 0x100;
     static constexpr uint16_t CUTOUT_ID     = 0x101;
-    static constexpr uint16_t DCC_PROFILE_ID = 0x104;
-    static constexpr uint8_t DCC_PROFILE_VERSION = 1;
-    static constexpr uint8_t PROFILE_VALID = 0x01;
-    static constexpr uint8_t PROFILE_MAIN_ON = 0x02;
     static constexpr size_t   FIFO_SIZE    = 256; // bits — marge > 16 × retard bus
 
     void begin();
@@ -58,14 +50,6 @@ public:
     bool peekEvent(DccCanEvent &event) const;
     bool popEvent(DccCanEvent &event);
     bool dccAlive() const;
-    bool hasDccProfile() const;
-    bool dccMainOn() const;
-    uint8_t halfBit1Us() const;
-    uint8_t halfBit0Us() const;
-    uint16_t profileSequence() const;
-    uint32_t profileAgeMs() const;
-    uint32_t profileValidFrames() const;
-    uint32_t profileInvalidFrames() const;
     uint32_t cutoutStartsReceived() const;
     uint16_t lastCutoutReceivedUs() const;
     bool lastCutoutReceivedMeasured() const;
@@ -81,14 +65,6 @@ private:
     DccCanEvent fifo[FIFO_SIZE] = {};
     size_t   head = 0, count = 0;
     uint32_t lastBlockMs = 0;
-    uint32_t lastProfileMs = 0;
-    bool dccProfileReceived = false;
-    bool dccProfileMainOn = false;
-    uint8_t profileHalfBit1Us = 58; // repli compatible avec le profil LaBox actuel
-    uint8_t profileHalfBit0Us = 100;
-    uint16_t profileSeq = 0;
-    uint32_t validProfileFrames = 0;
-    uint32_t invalidProfileFrames = 0;
     uint32_t receivedCutoutStarts = 0;
     uint16_t lastReceivedCutoutUs = 0;
     bool lastReceivedCutoutHasMeasurement = false;

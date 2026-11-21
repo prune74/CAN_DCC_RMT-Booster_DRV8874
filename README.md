@@ -7,6 +7,8 @@ régénère le signal DCC reçu sur son CAN local, protège sa propre sortie de
 voie, mesure courant et tension, et transmet ses informations à l'EXCC associé
 par UART.
 
+> **Profil DCC :** le Booster reçoit maintenant `DCC_REFERENCE (0x06)` par UART, contrôle le profil LaBox, applique les demi-bits au RMT et coupe la sortie si la référence est absente, invalide ou périmée. Compilation PlatformIO réussie avec le protocole partagé `v0.4.0`. La réception côté carte et les essais réels restent à vérifier.
+
 ## Fonctions
 
 - Reçoit les blocs DCC et les marqueurs de cutout sur TWAI à 500 kbit/s.
@@ -31,7 +33,15 @@ et des commandes reçues de son EXCC.
 | `0x100` | CAN → booster | Bits DCC empaquetés dans leur ordre chronologique; premier bit dans le nibble haut |
 | `0x101` | CAN → booster | START avec intervalle long mesuré (DLC 4); END (DLC 2) |
 | `0x102` | Booster → CAN | `{ID canton, TYPE=5 (BOOSTER), courant/10, tension alim/100, état}` |
-| `0x104` | Convertisseur → booster | Profil LaBox version 1, DLC 8; les demi-bits reçus règlent la génération RMT et MAIN OFF coupe la sortie |
+
+Le profil ne circule plus sous l’ancien ID CAN `0x104`; il arrive par UART depuis
+l’EXCC sous le type `DCC_REFERENCE (0x06)`, avec les 8 octets du profil LaBox
+`0xB7`. Le Booster vérifie la version, les indicateurs, les demi-bits, le tick
+de 1 µs et le préambule non nul. Une référence invalide ne renouvelle pas la
+fraîcheur; après 1 500 ms sans référence valide, la sortie est coupée. `MAIN OFF`
+provoque un arrêt normal. Les anciens messages CAN séparés `0x101`/`0x102`
+restent encore dans ce firmware en attendant la migration du flux CAN vers
+l’unique ID `0x100`.
 
 La télémétrie `0x102` est envoyée lors d'un changement d'état et avec un
 heartbeat de 5 s. États : `0=OK`, `1=FAULT`, `2=OVERHEAT`, `3=OFF`.
@@ -44,11 +54,10 @@ pour la durée BRAKE et sa fenêtre de capture RailCom. Cela ne démontre pas qu
 cette durée observée équivaut au profil logiciel LaBox (`29+215 µs` RMT,
 timer `160 µs × 4 phases`) ni à la durée électrique mesurée sur la voie.
 
-`0x104` ne contient pas les paramètres de génération cutout LaBox `0x22`.
-Le booster conserve le repli 58/100 µs si aucun profil n'a été reçu. Le champ
-tick et le préambule sont relayés mais ne sont pas encore utilisés par le
-générateur du booster. `0x103` reste réservé dans la coordination au retour
-d'adresse RailCom.
+Le champ tick et le préambule sont vérifiés et conservés pour diagnostic; les
+durées de demi-bit règlent le générateur RMT. Le préambule n’est pas utilisé par
+le RMT qui reçoit un flux de bits déjà préparé par le convertisseur. Aucun
+profil par défaut n’autorise la sortie en l’absence de référence UART valide.
 Le format est documenté dans
 [`Suivi/ERM_Liaison_DCC/PLAN_ANALYSE_DCC_CUTOUT_AUTOMATIQUE.md`](../../Suivi/ERM_Liaison_DCC/PLAN_ANALYSE_DCC_CUTOUT_AUTOMATIQUE.md).
 

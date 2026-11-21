@@ -1,4 +1,5 @@
 #include "BoosterCore.h"
+#include <CfcDccProtocol.h>
 
 void BoosterCore::begin()
 {
@@ -55,6 +56,44 @@ bool BoosterCore::setBoosterId(uint8_t id)
     return true;
 }
 
+bool BoosterCore::setDccReference(const uint8_t *data, uint8_t len)
+{
+    dccRefReceived = true;
+    dccRefValid = false;
+    if (data == nullptr || len != cfc::dcc::SERVICE_DLC)
+    {
+        invalidDccReferenceFrames++;
+        return false;
+    }
+
+    dccRefSeq = static_cast<uint16_t>(data[1]) |
+                (static_cast<uint16_t>(data[2]) << 8);
+    const uint8_t flags = data[3];
+    const uint8_t allowedFlags = cfc::dcc::PROFILE_FLAG_VALID |
+                                 cfc::dcc::PROFILE_FLAG_MAIN_ON;
+    dccRefMainOn = (flags & cfc::dcc::PROFILE_FLAG_MAIN_ON) != 0;
+
+    const bool valid = data[0] == cfc::dcc::PROTOCOL_VERSION &&
+        (flags & static_cast<uint8_t>(~allowedFlags)) == 0 &&
+        (flags & cfc::dcc::PROFILE_FLAG_VALID) != 0 &&
+        data[4] != 0 && data[5] != 0 && data[4] < data[5] &&
+        data[6] == 1 && data[7] != 0;
+    if (!valid)
+    {
+        invalidDccReferenceFrames++;
+        return false;
+    }
+
+    dccRefHalfBit1Us = data[4];
+    dccRefHalfBit0Us = data[5];
+    dccRefTickUs = data[6];
+    dccRefPreambleBits = data[7];
+    dccRefValid = true;
+    lastValidDccReferenceMs = millis();
+    validDccReferenceFrames++;
+    return true;
+}
+
 bool BoosterCore::isPowerEnabled() const noexcept
 {
     return powerEnabled;
@@ -84,29 +123,46 @@ void BoosterCore::update()
         return;
     }
 
-    // Appliquer le profil DCC reçu avant d'évaluer MAIN, afin que le diagnostic
-    // distingue un profil reçu d'un profil effectivement chargé dans le RMT.
-    if (canRx.hasDccProfile() &&
-        (!profileApplied || appliedProfileSeq != canRx.profileSequence()))
+    // La référence et MAIN proviennent du 0xB7 relayé par UART, pas du CAN
+    // Booster. Une référence absente, invalide ou périmée interdit la sortie.
+    if (!dccReferenceFresh())
     {
-        if (regen.setHalfBitUs(canRx.halfBit1Us(), canRx.halfBit0Us()))
-        {
-            profileApplied = true;
-            appliedProfileSeq = canRx.profileSequence();
-            appliedBit1Us = canRx.halfBit1Us();
-            appliedBit0Us = canRx.halfBit0Us();
-            appliedProfileCount++;
-        }
+        shutdown(BoosterState::FAULT);
+        return;
     }
-
-    // Un profil LaBox reçu par le CAN local peut arrêter immédiatement
-    // les boosters lorsque MAIN est coupé. Sans profil, garder le repli
-    // historique 58/100 µs pour compatibilité avec les anciens convertisseurs.
-    if (canRx.hasDccProfile() && !canRx.dccMainOn())
+    if (!dccRefMainOn)
     {
         shutdown(BoosterState::OFF);
         return;
     }
+
+    bool profileReadyForEmission = true;
+    if (!profileApplied || appliedBit1Us != dccRefHalfBit1Us ||
+        appliedBit0Us != dccRefHalfBit0Us)
+    {
+        // Les éléments déjà préparés dans le RMT gardent leur ancien timing.
+        // Attendre leur fin avant de charger une nouvelle durée de demi-bit.
+        if (drv.isEnabled())
+            shutdown(BoosterState::OFF);
+        if (regen.busy())
+            profileReadyForEmission = false;
+        else if (!regen.setHalfBitUs(dccRefHalfBit1Us, dccRefHalfBit0Us))
+        {
+            profileReadyForEmission = false;
+            dccRefValid = false;
+            invalidDccReferenceFrames++;
+            shutdown(BoosterState::FAULT);
+            return;
+        }
+        else
+        {
+            profileApplied = true;
+            appliedBit1Us = dccRefHalfBit1Us;
+            appliedBit0Us = dccRefHalfBit0Us;
+            appliedProfileCount++;
+        }
+    }
+    appliedProfileSeq = dccRefSeq;
 
     if (!powerEnabled)
     {
@@ -145,6 +201,9 @@ void BoosterCore::update()
             return;
         telemetry.state = BoosterState::OK;
     }
+
+    if (!profileReadyForEmission)
+        return;
 
     // --- 3. Flux DCC et cutout, traités dans l'ordre CAN ---
     uint8_t bits[32];
@@ -212,6 +271,25 @@ DccCanRx &BoosterCore::getCanRx() { return canRx; }
 Drv8874 &BoosterCore::getDrv() { return drv; }
 bool BoosterCore::hasAppliedDccProfile() const noexcept { return profileApplied; }
 uint16_t BoosterCore::appliedProfileSequence() const noexcept { return appliedProfileSeq; }
+bool BoosterCore::hasDccReference() const noexcept { return dccRefReceived; }
+bool BoosterCore::dccReferenceValid() const noexcept { return dccRefValid; }
+bool BoosterCore::dccReferenceFresh() const noexcept
+{
+    return dccRefReceived && dccRefValid &&
+           millis() - lastValidDccReferenceMs < cfc::dcc::REFERENCE_STALE_MS;
+}
+bool BoosterCore::dccReferenceMainOn() const noexcept { return dccRefMainOn; }
+uint16_t BoosterCore::dccReferenceSequence() const noexcept { return dccRefSeq; }
+uint32_t BoosterCore::dccReferenceAgeMs() const noexcept
+{
+    return validDccReferenceFrames > 0
+        ? millis() - lastValidDccReferenceMs
+        : 0;
+}
+uint8_t BoosterCore::dccReferenceHalfBit1Us() const noexcept { return dccRefHalfBit1Us; }
+uint8_t BoosterCore::dccReferenceHalfBit0Us() const noexcept { return dccRefHalfBit0Us; }
+uint32_t BoosterCore::dccReferenceValidFrames() const noexcept { return validDccReferenceFrames; }
+uint32_t BoosterCore::dccReferenceInvalidFrames() const noexcept { return invalidDccReferenceFrames; }
 uint8_t BoosterCore::appliedHalfBit1Us() const noexcept { return appliedBit1Us; }
 uint8_t BoosterCore::appliedHalfBit0Us() const noexcept { return appliedBit0Us; }
 uint32_t BoosterCore::profileApplications() const noexcept { return appliedProfileCount; }
