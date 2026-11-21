@@ -15,10 +15,11 @@ Les blocs DCC contiennent 1 à 16 bits empaquetés MSB-first; ils peuvent marque
 le début d’un paquet. Le cutout transporte sa durée mesurée dans le même flux.
 
 Le Booster contrôle le format, la taille, les champs réservés et la continuité
-de séquence. Une trame invalide ou une séquence manquante coupe la sortie;
-la reprise attend un début de paquet reconnu. La sortie est également coupée
-après 50 ms sans enregistrement valide. Ce délai est défini par le protocole,
-mais reste à confirmer sur banc.
+de séquence. Au démarrage, il attend un début de paquet reconnu avant de
+reprendre la génération. Une trame invalide ou une séquence manquante coupe la
+sortie; la reprise attend aussi un début de paquet reconnu. La sortie est
+également coupée après 50 ms sans enregistrement valide. Ce délai est défini
+par le protocole, mais reste à confirmer sur banc.
 
 La télémétrie historique `0x102` est encore émise par ce firmware sur le CAN
 local pour l’intégration actuelle avec l’EXCC/convertisseur. Son remplacement

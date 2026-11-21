@@ -5,7 +5,9 @@ using namespace cfc::dcc;
 
 void DccCanRx::begin() {
     lastBlockMs = millis();
-    streamFault = false;
+    // Au démarrage, attendre un début de paquet complet pour éviter de
+    // régénérer un flux qui aurait commencé avant l'initialisation du Booster.
+    streamFault = true;
     haveSequence = false;
 }
 
