@@ -25,6 +25,11 @@ public:
     void sampleSensors();
     void setPowerEnabled(bool enabled);
     bool setBoosterId(uint8_t id);
+    void clearBoosterId();
+    void setDiscoveryPermit(bool enabled);
+    bool hasFreshDiscoveryPermit() const;
+    bool shouldAnnounceDiscoveryId() const;
+    void markAssociationValidated();
     bool setDccReference(const uint8_t *data, uint8_t len);
 
     // Gestion du profil de tension (HO/N)
@@ -70,6 +75,9 @@ private:
     BoosterTelemetry telemetry;
     bool powerEnabled = false;
     uint8_t assignedBoosterId = CFG_CANTON_ID_UNASSIGNED;
+    uint32_t discoveryPermitMs = 0;
+    bool discoveryPermit = false;
+    bool associationValidated = false;
     uint32_t localFaultSinceMs = 0;
     bool profileApplied = false;
     uint16_t appliedProfileSeq = 0;

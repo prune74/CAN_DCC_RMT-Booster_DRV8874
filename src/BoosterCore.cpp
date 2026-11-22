@@ -1,8 +1,17 @@
 #include "BoosterCore.h"
 #include <CfcDccProtocol.h>
+#include <Preferences.h>
 
 void BoosterCore::begin()
 {
+    Preferences preferences;
+    if (preferences.begin("cfc-booster", true))
+    {
+        const uint8_t savedId = preferences.getUChar("canton", CFG_CANTON_ID_UNASSIGNED);
+        if (savedId >= 1 && savedId <= CFG_MAX_CANTON_ID)
+            assignedBoosterId = savedId;
+        preferences.end();
+    }
     regen.begin();
     drv.begin();
     railcom.begin();
@@ -52,8 +61,57 @@ bool BoosterCore::setBoosterId(uint8_t id)
     {
         setPowerEnabled(false);
         assignedBoosterId = id;
+        associationValidated = false;
+        Preferences preferences;
+        if (preferences.begin("cfc-booster", false))
+        {
+            preferences.putUChar("canton", id);
+            preferences.end();
+        }
     }
     return true;
+}
+
+void BoosterCore::clearBoosterId()
+{
+    setPowerEnabled(false);
+    assignedBoosterId = CFG_CANTON_ID_UNASSIGNED;
+    associationValidated = false;
+    discoveryPermit = false;
+    Preferences preferences;
+    if (preferences.begin("cfc-booster", false))
+    {
+        preferences.remove("canton");
+        preferences.end();
+    }
+}
+
+void BoosterCore::setDiscoveryPermit(bool enabled)
+{
+    if (!enabled)
+    {
+        discoveryPermit = false;
+        associationValidated = false;
+        return;
+    }
+    discoveryPermit = true;
+    discoveryPermitMs = millis();
+}
+
+bool BoosterCore::shouldAnnounceDiscoveryId() const
+{
+    return hasFreshDiscoveryPermit() && !associationValidated && hasBoosterId();
+}
+
+bool BoosterCore::hasFreshDiscoveryPermit() const
+{
+    return discoveryPermit &&
+           millis() - discoveryPermitMs < cfc::dcc::BOOSTER_DISCOVERY_MODE_TTL_MS;
+}
+
+void BoosterCore::markAssociationValidated()
+{
+    associationValidated = true;
 }
 
 bool BoosterCore::setDccReference(const uint8_t *data, uint8_t len)

@@ -8,8 +8,8 @@ par l’EXCC et surveille ses protections locales.
 
 ## CAN Booster
 
-Le format DCC partagé est `v0.4.0`. Le flux utilise l’identifiant standard
-`0x100` uniquement pour les enregistrements DCC et cutout. Chaque enregistrement
+Le format DCC partagé publié est `v0.4.0`. Le flux utilise l’identifiant standard
+`0x100` pour les enregistrements DCC et cutout. Chaque enregistrement
 porte le marqueur `0xD2`, une séquence 16 bits, un type et une charge utile.
 Les blocs DCC contiennent 1 à 16 bits empaquetés MSB-first; ils peuvent marquer
 le début d’un paquet. Le cutout transporte sa durée mesurée dans le même flux.
@@ -23,9 +23,10 @@ par le protocole, mais reste à confirmer sur banc.
 
 Le Booster émet maintenant son diagnostic DCC en UART `DCC_DIAGNOSTIC (0x12)`;
 l’EXCC l’acquitte et le joint aux informations `BOOSTER_INFO`, puis le CC
-publie `BOOSTER_SUPERVISION (0xB6)` sur CAN Service. La télémétrie `0x102` a
-été retirée du CAN Booster; son état est transmis sous `0xB6`, et le flux
-`0x100` est maintenant le seul message émis sur le CAN Booster.
+publie `BOOSTER_SUPERVISION (0xB6)` sur CAN Service. L’ancien format de
+La télémétrie `0x102` a été retirée. `0x101` annonce l’ID du Booster en Exploration
+autorisée; ce message ne transporte
+jamais DCC/cutout. En Exploitation, le CAN Booster transporte le flux `0x100`.
 
 ## Référence DCC par UART
 
@@ -37,9 +38,12 @@ référence absente, invalide ou périmée après 1 500 ms interdit la sortie;
 `MAIN OFF` provoque un arrêt normal. Le préambule reste informatif côté Booster,
 car les bits DCC sont déjà reconstruits par le convertisseur.
 
-Le firmware compile avec `CFC_CAN_Discovery_Protocol v0.4.0`. La réception
-UART réelle, la circulation CAN complète et le comportement électrique sur la
-voie n’ont pas encore été validés sur banc.
+Le firmware compile avec `CFC_CAN_Discovery_Protocol v0.5.0`. L’ID attribué
+par UART est conservé en mémoire non volatile; la perte du heartbeat coupe la
+sortie sans effacer cet ID. Le Booster émet `0x101` toutes les 100 ms tant que
+l’autorisation reçue par UART `0x15` est fraîche; il valide `0x16`, puis arrête
+les annonces. La réception UART réelle, la circulation CAN complète et le
+comportement électrique sur la voie restent à vérifier sur banc.
 
 ## Mesures et limites actuelles
 
@@ -65,18 +69,29 @@ version 2, un numéro de séquence et un CRC-16/CCITT-FALSE.
 | `0x02` | EXCC → Booster | Autorisation de puissance ON/OFF |
 | `0x03` | EXCC → Booster | Profil N ou HO |
 | `0x04` | Booster → EXCC | Accusé de réception |
-| `0x05` | EXCC → Booster | Attribution ou retrait de l’ID canton |
+| `0x05` | EXCC → Booster | Attribution normale de l’ID canton; `0xFF` suspend l’ID runtime et le DCC, sans effacer l’ID persistant |
 | `0x06` | EXCC → Booster | Référence DCC LaBox |
 | `0x10` | Booster → EXCC | Mesures et état |
 | `0x11` | Booster → EXCC | Événement RailCom |
-| `0x12` | Booster → EXCC | Diagnostic DCC — défini, réception applicative à intégrer |
+| `0x12` | Booster → EXCC | Diagnostic DCC |
+| `0x15` | EXCC → Booster | Autorisation d’annonce `0x101`, fraîcheur 1 500 ms |
+| `0x16` | EXCC → Booster | Validation d’association `0xC4`, ACK corrélé |
+| `0x17` | EXCC → Booster | Effacement explicite de l’ID persistant, ACK requis |
 
 TX/RX sont croisés et les masses doivent être communes.
 
 ## Protections locales
 
 - Sortie désactivée au démarrage jusqu’à attribution d’un ID et autorisation.
-- Perte de heartbeat UART pendant 250 ms : sortie coupée et identité effacée.
+- Perte de heartbeat UART pendant 250 ms : sortie coupée, ID conservé.
+- Fonction intégrée : l’ID est mémorisé en mémoire non volatile; une nouvelle
+  attribution explicite du CC le remplace et invalide l’association. Seule la
+  commande dédiée CC→EXCC `0xED`, relayée par UART `0x17`, efface l’ID. Un
+  redémarrage ou une valeur normale `0xFF` ne l’efface pas; `0xFF` suspend
+  toutefois l’ID runtime et bloque la sortie DCC.
+- L’autorisation d’annonce Booster est renouvelée toutes les 500 ms et expire
+  après 1 500 ms sans renouvellement; une annonce `0x101` est émise toutes les
+  100 ms en Exploration puis arrêtée après validation.
 - Perte/incohérence du flux CAN ou absence de profil frais : sortie coupée.
 - Courant maximal configuré : 2 000 mA; sous-tension alimentation : 9 000 mV.
 - Après un défaut électrique, une nouvelle tentative locale est possible après

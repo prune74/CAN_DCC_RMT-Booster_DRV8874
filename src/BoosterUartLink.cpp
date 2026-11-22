@@ -33,7 +33,7 @@ void BoosterUartLink::update(BoosterCore &booster)
     if (!heartbeatValid && !m_timeoutApplied)
     {
         booster.setPowerEnabled(false);
-        booster.setBoosterId(CFG_CANTON_ID_UNASSIGNED);
+        booster.setDiscoveryPermit(false);
         m_timeoutApplied = true;
     }
 
@@ -98,6 +98,54 @@ void BoosterUartLink::handleFrame(
                                   frame.payload[0]);
                 sendAck(frame.type, frame.sequence, ACK_OK);
             }
+        }
+        break;
+
+    case BoosterUart::Type::BOOSTER_DISCOVERY_MODE:
+        if (frame.length != 1 || frame.payload[0] > 1)
+            sendAck(frame.type, frame.sequence, ACK_INVALID);
+        else if (!m_heartbeatSeen || now - m_lastHeartbeatMs >= HEARTBEAT_TIMEOUT_MS)
+            sendAck(frame.type, frame.sequence, ACK_NO_HEARTBEAT);
+        else
+        {
+            booster.setDiscoveryPermit(frame.payload[0] != 0);
+            m_lastDiscoverySequence = frame.sequence;
+            sendAck(frame.type, frame.sequence, ACK_OK);
+        }
+        break;
+
+    case BoosterUart::Type::BOOSTER_ASSOCIATION_VALIDATE:
+        if (frame.length != 8 || frame.payload[0] != 1 ||
+            (frame.payload[1] == 0 && frame.payload[2] == 0) ||
+            frame.payload[3] < 1 || frame.payload[3] > 252 ||
+            frame.payload[4] != 0 || frame.payload[5] != 0 ||
+            frame.payload[6] != 0 || frame.payload[7] != 0)
+            sendAck(frame.type, frame.sequence, ACK_INVALID);
+        else if (!m_heartbeatSeen || now - m_lastHeartbeatMs >= HEARTBEAT_TIMEOUT_MS)
+            sendAck(frame.type, frame.sequence, ACK_NO_HEARTBEAT);
+        else if (!booster.hasBoosterId())
+            sendAck(frame.type, frame.sequence, ACK_NO_ID);
+        else if (!booster.hasFreshDiscoveryPermit())
+            break; // Sans autorisation Exploration fraîche, ne pas valider.
+        else if (frame.payload[3] != booster.boosterId())
+            sendAck(frame.type, frame.sequence, ACK_INVALID);
+        else
+        {
+            booster.markAssociationValidated();
+            m_lastAssociationSequence = frame.sequence;
+            sendAck(frame.type, frame.sequence, ACK_OK);
+        }
+        break;
+
+    case BoosterUart::Type::CLEAR_CANTON_ID:
+        if (frame.length != 0)
+            sendAck(frame.type, frame.sequence, ACK_INVALID);
+        else if (!m_heartbeatSeen || now - m_lastHeartbeatMs >= HEARTBEAT_TIMEOUT_MS)
+            sendAck(frame.type, frame.sequence, ACK_NO_HEARTBEAT);
+        else
+        {
+            booster.clearBoosterId();
+            sendAck(frame.type, frame.sequence, ACK_OK);
         }
         break;
 

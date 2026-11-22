@@ -31,4 +31,6 @@ private:
     bool m_diagnosticPending = false;
     bool m_heartbeatSeen = false;
     bool m_timeoutApplied = false;
+    uint16_t m_lastDiscoverySequence = 0xFFFF;
+    uint16_t m_lastAssociationSequence = 0xFFFF;
 };

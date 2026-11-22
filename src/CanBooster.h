@@ -13,6 +13,7 @@ class CanBooster {
 public:
     void begin(BoosterCore &core, StatusLeds &leds);
     void poll();
+    bool announceDiscoveryId(uint8_t boosterId);
 
 private:
     BoosterCanConfig cfgProvider;
