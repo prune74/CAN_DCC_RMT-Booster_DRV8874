@@ -1,7 +1,7 @@
 #pragma once
 
 #include "BoosterCore.h"
-#include "UartProtocol.h"
+#include <UartProtocol.h>
 
 class BoosterUartLink
 {
@@ -19,6 +19,8 @@ private:
     void updateDccDiagnostic(const BoosterCore &booster, uint32_t nowMs);
     void sendPendingDccDiagnostic(uint32_t nowMs);
     void sendPendingTimingResult(uint32_t nowMs);
+    void queueTimingResult(uint16_t transaction, uint8_t result,
+                           int8_t saved1, int8_t saved0);
 
     BoosterUart::Parser m_parser;
     uint16_t m_txSequence = 0;

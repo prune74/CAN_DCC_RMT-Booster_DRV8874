@@ -38,12 +38,21 @@ référence absente, invalide ou périmée après 1 500 ms interdit la sortie;
 `MAIN OFF` provoque un arrêt normal. Le préambule reste informatif côté Booster,
 car les bits DCC sont déjà reconstruits par le convertisseur.
 
-Le firmware compile avec `CFC_CAN_Discovery_Protocol v0.5.0`. L’ID attribué
+Le firmware compile avec `CFC_CAN_Discovery_Protocol v0.5.0` et
+`Gestion_Canton_Protocol v1.3.0`. Le type UART partagé est défini dans
+`Gestion_Canton_Protocol/src/UartProtocol.h`; il ne doit pas être dupliqué
+localement. L’ID attribué
 par UART est conservé en mémoire non volatile; la perte du heartbeat coupe la
 sortie sans effacer cet ID. Le Booster émet `0x101` toutes les 100 ms tant que
 l’autorisation reçue par UART `0x15` est fraîche; il valide `0x16`, puis arrête
 les annonces. La réception UART réelle, la circulation CAN complète et le
 comportement électrique sur la voie restent à vérifier sur banc.
+
+Les corrections de demi-bits sont enregistrées dans la mémoire non volatile du
+Booster. Le Booster accepte aussi la demande UART `DCC_TIMING_READ (0x18)` :
+il renvoie les deux valeurs enregistrées dans `DCC_TIMING_RESULT (0x14)` sans
+les modifier. Cette lecture permet à l’ERM de retrouver les réglages après son
+redémarrage. L’échange CAN/UART réel reste à valider avec les cartes connectées.
 
 ## Mesures et limites actuelles
 
