@@ -10,6 +10,24 @@ void BoosterCore::begin()
         const uint8_t savedId = preferences.getUChar("canton", CFG_CANTON_ID_UNASSIGNED);
         if (savedId >= 1 && savedId <= CFG_MAX_CANTON_ID)
             assignedBoosterId = savedId;
+        uint8_t timing[4] = {};
+        if (preferences.getBytesLength("timing") == sizeof(timing) &&
+            preferences.getBytes("timing", timing, sizeof(timing)) == sizeof(timing))
+        {
+            const uint16_t savedTransaction = static_cast<uint16_t>(timing[0]) |
+                (static_cast<uint16_t>(timing[1]) << 8);
+            const int8_t correction1 = static_cast<int8_t>(timing[2]);
+            const int8_t correction0 = static_cast<int8_t>(timing[3]);
+            if (correction1 >= -5 && correction1 <= 5 &&
+                correction0 >= -5 && correction0 <= 5)
+            {
+                timingCorrection1Us = correction1;
+                timingCorrection0Us = correction0;
+                lastTimingTransaction = savedTransaction;
+                lastTimingRequest1Us = correction1;
+                lastTimingRequest0Us = correction0;
+            }
+        }
         preferences.end();
     }
     regen.begin();
@@ -152,6 +170,71 @@ bool BoosterCore::setDccReference(const uint8_t *data, uint8_t len)
     return true;
 }
 
+cfc::dcc::TimingResult BoosterCore::setTimingCorrections(
+    uint16_t transaction, int8_t halfBit1Us, int8_t halfBit0Us,
+    int8_t &savedHalfBit1Us, int8_t &savedHalfBit0Us)
+{
+    using cfc::dcc::TimingResult;
+    savedHalfBit1Us = timingCorrection1Us;
+    savedHalfBit0Us = timingCorrection0Us;
+    if (transaction == 0)
+        return TimingResult::TRANSACTION_CONFLICT;
+    if (halfBit1Us < -5 || halfBit1Us > 5 || halfBit0Us < -5 || halfBit0Us > 5)
+        return TimingResult::CORRECTION_OUT_OF_RANGE;
+    if (transaction == lastTimingTransaction && lastTimingTransaction != 0)
+        return halfBit1Us == lastTimingRequest1Us && halfBit0Us == lastTimingRequest0Us
+            ? TimingResult::APPLIED : TimingResult::TRANSACTION_CONFLICT;
+    if (drv.isEnabled() || regen.busy())
+        return TimingResult::OUTPUT_ACTIVE;
+
+    const int16_t base1 = dccRefValid ? dccRefHalfBit1Us : 58;
+    const int16_t base0 = dccRefValid ? dccRefHalfBit0Us : 100;
+    const int16_t effective1 = base1 + halfBit1Us;
+    const int16_t effective0 = base0 + halfBit0Us;
+    if (effective1 <= 0 || effective0 <= 0 || effective1 >= effective0 ||
+        effective1 > 255 || effective0 > 255)
+        return TimingResult::RESULTING_TIMING_INVALID;
+
+    const int16_t oldEffective1 = base1 + timingCorrection1Us;
+    const int16_t oldEffective0 = base0 + timingCorrection0Us;
+    if (!regen.setHalfBitUs(static_cast<uint8_t>(effective1),
+                            static_cast<uint8_t>(effective0)))
+        return TimingResult::RESULTING_TIMING_INVALID;
+
+    const uint8_t timing[4] = {
+        static_cast<uint8_t>(transaction & 0xFFU),
+        static_cast<uint8_t>(transaction >> 8),
+        static_cast<uint8_t>(halfBit1Us),
+        static_cast<uint8_t>(halfBit0Us)};
+    Preferences preferences;
+    if (!preferences.begin("cfc-booster", false)) {
+        if (oldEffective1 > 0 && oldEffective0 > oldEffective1 && oldEffective0 <= 255)
+            regen.setHalfBitUs(static_cast<uint8_t>(oldEffective1),
+                               static_cast<uint8_t>(oldEffective0));
+        return TimingResult::STORAGE_FAILED;
+    }
+    const size_t written = preferences.putBytes("timing", timing, sizeof(timing));
+    preferences.end();
+    if (written != sizeof(timing)) {
+        if (oldEffective1 > 0 && oldEffective0 > oldEffective1 && oldEffective0 <= 255)
+            regen.setHalfBitUs(static_cast<uint8_t>(oldEffective1),
+                               static_cast<uint8_t>(oldEffective0));
+        return TimingResult::STORAGE_FAILED;
+    }
+
+    timingCorrection1Us = halfBit1Us;
+    timingCorrection0Us = halfBit0Us;
+    lastTimingTransaction = transaction;
+    lastTimingRequest1Us = halfBit1Us;
+    lastTimingRequest0Us = halfBit0Us;
+    profileApplied = true;
+    appliedBit1Us = static_cast<uint8_t>(effective1);
+    appliedBit0Us = static_cast<uint8_t>(effective0);
+    savedHalfBit1Us = timingCorrection1Us;
+    savedHalfBit0Us = timingCorrection0Us;
+    return TimingResult::APPLIED;
+}
+
 bool BoosterCore::isPowerEnabled() const noexcept
 {
     return powerEnabled;
@@ -202,8 +285,19 @@ void BoosterCore::update()
     }
 
     bool profileReadyForEmission = true;
-    if (!profileApplied || appliedBit1Us != dccRefHalfBit1Us ||
-        appliedBit0Us != dccRefHalfBit0Us)
+    const int16_t effectiveBit1Us = static_cast<int16_t>(dccRefHalfBit1Us) +
+                                    timingCorrection1Us;
+    const int16_t effectiveBit0Us = static_cast<int16_t>(dccRefHalfBit0Us) +
+                                    timingCorrection0Us;
+    if (effectiveBit1Us <= 0 || effectiveBit0Us <= 0 ||
+        effectiveBit1Us >= effectiveBit0Us || effectiveBit1Us > 255 ||
+        effectiveBit0Us > 255)
+    {
+        shutdown(BoosterState::FAULT);
+        return;
+    }
+    if (!profileApplied || appliedBit1Us != effectiveBit1Us ||
+        appliedBit0Us != effectiveBit0Us)
     {
         // Les éléments déjà préparés dans le RMT gardent leur ancien timing.
         // Attendre leur fin avant de charger une nouvelle durée de demi-bit.
@@ -211,7 +305,8 @@ void BoosterCore::update()
             shutdown(BoosterState::OFF);
         if (regen.busy())
             profileReadyForEmission = false;
-        else if (!regen.setHalfBitUs(dccRefHalfBit1Us, dccRefHalfBit0Us))
+        else if (!regen.setHalfBitUs(static_cast<uint8_t>(effectiveBit1Us),
+                                     static_cast<uint8_t>(effectiveBit0Us)))
         {
             profileReadyForEmission = false;
             dccRefValid = false;
@@ -222,8 +317,8 @@ void BoosterCore::update()
         else
         {
             profileApplied = true;
-            appliedBit1Us = dccRefHalfBit1Us;
-            appliedBit0Us = dccRefHalfBit0Us;
+            appliedBit1Us = static_cast<uint8_t>(effectiveBit1Us);
+            appliedBit0Us = static_cast<uint8_t>(effectiveBit0Us);
             appliedProfileCount++;
         }
     }
@@ -359,6 +454,8 @@ uint32_t BoosterCore::dccReferenceValidFrames() const noexcept { return validDcc
 uint32_t BoosterCore::dccReferenceInvalidFrames() const noexcept { return invalidDccReferenceFrames; }
 uint8_t BoosterCore::appliedHalfBit1Us() const noexcept { return appliedBit1Us; }
 uint8_t BoosterCore::appliedHalfBit0Us() const noexcept { return appliedBit0Us; }
+int8_t BoosterCore::timingCorrectionHalfBit1Us() const noexcept { return timingCorrection1Us; }
+int8_t BoosterCore::timingCorrectionHalfBit0Us() const noexcept { return timingCorrection0Us; }
 uint32_t BoosterCore::profileApplications() const noexcept { return appliedProfileCount; }
 uint32_t BoosterCore::cutoutsApplied() const noexcept { return appliedCutoutCount; }
 uint32_t BoosterCore::cutoutsRejectedRange() const noexcept { return rejectedCutoutRangeCount; }

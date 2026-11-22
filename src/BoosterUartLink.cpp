@@ -47,6 +47,7 @@ void BoosterUartLink::update(BoosterCore &booster)
 
     sendRailCom(booster);
     updateDccDiagnostic(booster, nowMs);
+    sendPendingTimingResult(nowMs);
 }
 
 void BoosterUartLink::receive(BoosterCore &booster)
@@ -182,7 +183,45 @@ void BoosterUartLink::handleFrame(
         booster.setDccReference(frame.payload, frame.length);
         break;
 
+    case BoosterUart::Type::DCC_TIMING_SET:
+        if (frame.length != 4 ||
+            (frame.payload[0] == 0 && frame.payload[1] == 0))
+        {
+            sendAck(frame.type, frame.sequence, ACK_INVALID);
+            break;
+        }
+        {
+            const uint16_t transaction = static_cast<uint16_t>(frame.payload[0]) |
+                (static_cast<uint16_t>(frame.payload[1]) << 8);
+            int8_t saved1 = booster.timingCorrectionHalfBit1Us();
+            int8_t saved0 = booster.timingCorrectionHalfBit0Us();
+            const auto result = booster.setTimingCorrections(
+                transaction, static_cast<int8_t>(frame.payload[2]),
+                static_cast<int8_t>(frame.payload[3]), saved1, saved0);
+            sendAck(frame.type, frame.sequence, ACK_OK);
+
+            BoosterUart::Frame &response = m_pendingTimingResultFrame;
+            response = BoosterUart::Frame{};
+            response.type = static_cast<uint8_t>(BoosterUart::Type::DCC_TIMING_RESULT);
+            response.sequence = m_txSequence++;
+            response.length = 5;
+            response.payload[0] = static_cast<uint8_t>(transaction & 0xFFU);
+            response.payload[1] = static_cast<uint8_t>(transaction >> 8);
+            response.payload[2] = static_cast<uint8_t>(result);
+            response.payload[3] = static_cast<uint8_t>(saved1);
+            response.payload[4] = static_cast<uint8_t>(saved0);
+            m_timingResultPending = true;
+            m_lastTimingResultTxMs = now - DIAGNOSTIC_RETRY_MS;
+        }
+        break;
+
     case BoosterUart::Type::ACK:
+        if (frame.length == 4 && m_timingResultPending &&
+            frame.payload[0] == static_cast<uint8_t>(BoosterUart::Type::DCC_TIMING_RESULT) &&
+            static_cast<uint16_t>(frame.payload[1] |
+                (static_cast<uint16_t>(frame.payload[2]) << 8)) ==
+                m_pendingTimingResultFrame.sequence && frame.payload[3] == ACK_OK)
+            m_timingResultPending = false;
         if (frame.length == 4 && m_diagnosticPending &&
             frame.payload[0] == static_cast<uint8_t>(BoosterUart::Type::DCC_DIAGNOSTIC) &&
             static_cast<uint16_t>(frame.payload[1] |
@@ -198,6 +237,14 @@ void BoosterUartLink::handleFrame(
     default:
         break;
     }
+}
+
+void BoosterUartLink::sendPendingTimingResult(uint32_t nowMs)
+{
+    if (m_timingResultPending &&
+        nowMs - m_lastTimingResultTxMs >= DIAGNOSTIC_RETRY_MS &&
+        sendFrame(m_pendingTimingResultFrame))
+        m_lastTimingResultTxMs = nowMs;
 }
 
 void BoosterUartLink::sendAck(

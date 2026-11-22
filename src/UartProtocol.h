@@ -27,6 +27,8 @@ enum class Type : uint8_t
     BOOSTER_ASSOCIATION_VALIDATE = 0x16,
     CLEAR_CANTON_ID = 0x17,
     DCC_DIAGNOSTIC = 0x12,
+    DCC_TIMING_SET = 0x13,
+    DCC_TIMING_RESULT = 0x14,
     SAMPLE = 0x10,
     RAILCOM = 0x11
 };

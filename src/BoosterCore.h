@@ -6,6 +6,7 @@
 #include "RailCom.h"
 #include "TensionControl.h"
 #include "Types.h"
+#include <CfcDccProtocol.h>
 
 // ============================================================
 // BoosterCore — orchestration
@@ -31,6 +32,11 @@ public:
     bool shouldAnnounceDiscoveryId() const;
     void markAssociationValidated();
     bool setDccReference(const uint8_t *data, uint8_t len);
+    cfc::dcc::TimingResult setTimingCorrections(uint16_t transaction,
+                                                int8_t halfBit1Us,
+                                                int8_t halfBit0Us,
+                                                int8_t &savedHalfBit1Us,
+                                                int8_t &savedHalfBit0Us);
 
     // Gestion du profil de tension (HO/N)
     void setTrackProfile(bool ho) noexcept;
@@ -51,6 +57,8 @@ public:
     uint32_t dccReferenceInvalidFrames() const noexcept;
     uint8_t appliedHalfBit1Us() const noexcept;
     uint8_t appliedHalfBit0Us() const noexcept;
+    int8_t timingCorrectionHalfBit1Us() const noexcept;
+    int8_t timingCorrectionHalfBit0Us() const noexcept;
     uint32_t profileApplications() const noexcept;
     uint32_t cutoutsApplied() const noexcept;
     uint32_t cutoutsRejectedRange() const noexcept;
@@ -94,6 +102,11 @@ private:
     uint32_t invalidDccReferenceFrames = 0;
     uint8_t appliedBit1Us = 58;
     uint8_t appliedBit0Us = 100;
+    int8_t timingCorrection1Us = 0;
+    int8_t timingCorrection0Us = 0;
+    uint16_t lastTimingTransaction = 0;
+    int8_t lastTimingRequest1Us = 0;
+    int8_t lastTimingRequest0Us = 0;
     uint32_t appliedProfileCount = 0;
     uint32_t appliedCutoutCount = 0;
     uint32_t rejectedCutoutRangeCount = 0;
