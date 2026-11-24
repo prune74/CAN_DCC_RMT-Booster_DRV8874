@@ -39,7 +39,7 @@ public:
                                                 int8_t &savedHalfBit0Us);
 
     // Gestion du profil de tension (HO/N)
-    void setTrackProfile(bool ho) noexcept;
+    bool setTrackProfile(bool ho) noexcept;
     bool isPowerEnabled() const noexcept;
     bool hasBoosterId() const noexcept;
     uint8_t boosterId() const noexcept;
@@ -82,6 +82,7 @@ private:
     TensionControl tensionControl;
     BoosterTelemetry telemetry;
     bool powerEnabled = false;
+    bool trackProfileHo = false;
     uint8_t assignedBoosterId = CFG_CANTON_ID_UNASSIGNED;
     uint32_t discoveryPermitMs = 0;
     bool discoveryPermit = false;

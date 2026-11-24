@@ -11,17 +11,17 @@ void TensionControl::begin() noexcept
 // Définit le profil de voie
 //   ho = true  → profil HO (15V, valeur DIGIPOT_HO)
 //   ho = false → profil N  (12V, valeur DIGIPOT_N)
-void TensionControl::setTrackProfile(bool ho) noexcept
+bool TensionControl::setTrackProfile(bool ho) noexcept
 {
     uint8_t value = ho ? DIGIPOT_HO : DIGIPOT_N;
-    writeDigipot(value);
+    return writeDigipot(value);
 }
 
 // Écrit la valeur dans le digipot via I2C
-void TensionControl::writeDigipot(uint8_t value) noexcept
+bool TensionControl::writeDigipot(uint8_t value) noexcept
 {
     Wire.beginTransmission(DIGIPOT_ADDR);
     Wire.write(DIGIPOT_REG);
     Wire.write(value);
-    Wire.endTransmission();
+    return Wire.endTransmission() == 0;
 }

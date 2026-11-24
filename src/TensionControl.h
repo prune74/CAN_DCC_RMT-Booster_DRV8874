@@ -19,8 +19,8 @@
 class TensionControl {
 public:
     void begin() noexcept;
-    void setTrackProfile(bool ho) noexcept;  // true=HO, false=N
+    bool setTrackProfile(bool ho) noexcept;  // true=HO, false=N
 
 private:
-    void writeDigipot(uint8_t value) noexcept;
+    bool writeDigipot(uint8_t value) noexcept;
 };

@@ -10,6 +10,9 @@ void BoosterCore::begin()
         const uint8_t savedId = preferences.getUChar("canton", CFG_CANTON_ID_UNASSIGNED);
         if (savedId >= 1 && savedId <= CFG_MAX_CANTON_ID)
             assignedBoosterId = savedId;
+        const uint8_t savedProfile = preferences.getUChar("track_profile", 0);
+        if (savedProfile <= 1)
+            trackProfileHo = savedProfile == 1;
         uint8_t timing[4] = {};
         if (preferences.getBytesLength("timing") == sizeof(timing) &&
             preferences.getBytes("timing", timing, sizeof(timing)) == sizeof(timing))
@@ -34,7 +37,8 @@ void BoosterCore::begin()
     drv.begin();
     railcom.begin();
     canRx.begin();
-    tensionControl.begin(); // Initialise le digipot (profil par défaut)
+    tensionControl.begin();
+    tensionControl.setTrackProfile(trackProfileHo);
     telemetry.state = BoosterState::OFF;
 }
 
@@ -45,9 +49,28 @@ void BoosterCore::shutdown(BoosterState state)
 }
 
 // Gestion du profil de tension (HO/N)
-void BoosterCore::setTrackProfile(bool ho) noexcept
+bool BoosterCore::setTrackProfile(bool ho) noexcept
 {
-    tensionControl.setTrackProfile(ho);
+    if (powerEnabled || drv.isEnabled())
+        return false;
+    if (!tensionControl.setTrackProfile(ho))
+        return false;
+
+    Preferences preferences;
+    if (!preferences.begin("cfc-booster", false))
+    {
+        tensionControl.setTrackProfile(trackProfileHo);
+        return false;
+    }
+    const size_t written = preferences.putUChar("track_profile", ho ? 1 : 0);
+    preferences.end();
+    if (written != sizeof(uint8_t))
+    {
+        tensionControl.setTrackProfile(trackProfileHo);
+        return false;
+    }
+    trackProfileHo = ho;
+    return true;
 }
 
 void BoosterCore::setPowerEnabled(bool enabled)

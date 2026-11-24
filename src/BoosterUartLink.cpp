@@ -10,6 +10,7 @@ constexpr uint32_t UART_BAUD = 460800;
 constexpr uint32_t HEARTBEAT_TIMEOUT_MS = 250;
 constexpr uint32_t SAMPLE_PERIOD_US = 1000;
 constexpr uint32_t DIAGNOSTIC_RETRY_MS = 100;
+constexpr uint32_t PROFILE_RESULT_RETRY_MS = 100;
 
 constexpr uint8_t ACK_OK = 0;
 constexpr uint8_t ACK_INVALID = 1;
@@ -48,6 +49,7 @@ void BoosterUartLink::update(BoosterCore &booster)
     sendRailCom(booster);
     updateDccDiagnostic(booster, nowMs);
     sendPendingTimingResult(nowMs);
+    sendPendingProfileSetpointResult(nowMs);
 }
 
 void BoosterUartLink::receive(BoosterCore &booster)
@@ -164,24 +166,91 @@ void BoosterUartLink::handleFrame(
         }
         break;
 
-    case BoosterUart::Type::SET_PROFILE:
-        if (frame.length != 1 || frame.payload[0] > 1)
-            sendAck(frame.type, frame.sequence, ACK_INVALID);
-        else if (!m_heartbeatSeen || now - m_lastHeartbeatMs >= HEARTBEAT_TIMEOUT_MS)
-            sendAck(frame.type, frame.sequence, ACK_NO_HEARTBEAT);
-        else
-        {
-            booster.setTrackProfile(frame.payload[0] == 1);
-            sendAck(frame.type, frame.sequence, ACK_OK);
-        }
-        break;
-
     case BoosterUart::Type::DCC_REFERENCE:
         // Le payload est le profil LaBox 0xB7 relayé sans modification par
         // l’EXCC. Les profils invalides sont conservés comme défaut, sans
         // renouveler la fraîcheur de la dernière référence valide.
         booster.setDccReference(frame.payload, frame.length);
         break;
+
+    case BoosterUart::Type::PROFILE_SETPOINT:
+    {
+        if (frame.length != cfc::dcc::SERVICE_DLC ||
+            frame.payload[0] != cfc::dcc::PROTOCOL_VERSION ||
+            frame.payload[1] != cfc::dcc::PROFILE_SETPOINT_TARGET_ALL_CC ||
+            frame.payload[7] != 0)
+        {
+            sendAck(frame.type, frame.sequence, ACK_INVALID);
+            break;
+        }
+
+        const uint16_t transaction = static_cast<uint16_t>(frame.payload[5]) |
+            (static_cast<uint16_t>(frame.payload[6]) << 8);
+        if (transaction == 0)
+        {
+            sendAck(frame.type, frame.sequence, ACK_INVALID);
+            break;
+        }
+
+        if (m_profileSetpointValid && transaction == m_profileSetpointTransaction)
+        {
+            bool sameRequest = true;
+            for (uint8_t i = 0; i < cfc::dcc::SERVICE_DLC; ++i)
+                sameRequest = sameRequest && frame.payload[i] == m_profileSetpointRequest[i];
+            sendAck(frame.type, frame.sequence, ACK_OK);
+            if (sameRequest && m_profileSetpointResultPending)
+            {
+                if (sendFrame(m_pendingProfileSetpointResultFrame))
+                    m_lastProfileSetpointResultTxMs = now;
+            }
+            else
+                queueProfileSetpointResult(transaction, sameRequest
+                    ? m_profileSetpointResult
+                    : static_cast<uint8_t>(
+                        BoosterUart::ProfileSetpointResult::TRANSACTION_CONFLICT));
+            break;
+        }
+
+        for (uint8_t i = 0; i < cfc::dcc::SERVICE_DLC; ++i)
+            m_profileSetpointRequest[i] = frame.payload[i];
+        m_profileSetpointTransaction = transaction;
+        m_profileSetpointValid = true;
+
+        uint8_t result = static_cast<uint8_t>(
+            BoosterUart::ProfileSetpointResult::APPLICATION_FAILED);
+        if (!m_heartbeatSeen || now - m_lastHeartbeatMs >= HEARTBEAT_TIMEOUT_MS)
+            result = static_cast<uint8_t>(
+                BoosterUart::ProfileSetpointResult::APPLICATION_FAILED);
+        else if (!booster.hasFreshDiscoveryPermit())
+            result = static_cast<uint8_t>(
+                BoosterUart::ProfileSetpointResult::NOT_IN_EXPLORATION);
+        else if (frame.payload[2] != cfc::dcc::TRACK_PROFILE_N &&
+                 frame.payload[2] != cfc::dcc::TRACK_PROFILE_HO)
+            result = static_cast<uint8_t>(
+                BoosterUart::ProfileSetpointResult::INVALID_PROFILE);
+        else
+        {
+            const uint16_t setpoint = static_cast<uint16_t>(frame.payload[3]) |
+                (static_cast<uint16_t>(frame.payload[4]) << 8);
+            const uint16_t expected = frame.payload[2] == cfc::dcc::TRACK_PROFILE_N
+                ? 12000 : 15000;
+            if (setpoint != expected)
+                result = static_cast<uint8_t>(
+                    BoosterUart::ProfileSetpointResult::INVALID_SETPOINT);
+            else if (booster.isPowerEnabled())
+                result = static_cast<uint8_t>(
+                    BoosterUart::ProfileSetpointResult::APPLICATION_FAILED);
+            else if (booster.setTrackProfile(
+                         frame.payload[2] == cfc::dcc::TRACK_PROFILE_HO))
+                result = static_cast<uint8_t>(
+                    BoosterUart::ProfileSetpointResult::ACCEPTED);
+        }
+
+        sendAck(frame.type, frame.sequence, ACK_OK);
+        m_profileSetpointResult = result;
+        queueProfileSetpointResult(transaction, result);
+        break;
+    }
 
     case BoosterUart::Type::DCC_TIMING_SET:
         if (frame.length != 4 ||
@@ -244,6 +313,18 @@ void BoosterUartLink::handleFrame(
                 (static_cast<uint16_t>(frame.payload[2]) << 8)) ==
                 m_pendingTimingResultFrame.sequence && frame.payload[3] == ACK_OK)
             m_timingResultPending = false;
+        if (frame.length == 4 && m_profileSetpointResultPending &&
+            frame.payload[0] == static_cast<uint8_t>(
+                BoosterUart::Type::PROFILE_SETPOINT_RESULT) &&
+            static_cast<uint16_t>(frame.payload[1] |
+                (static_cast<uint16_t>(frame.payload[2]) << 8)) ==
+                m_pendingProfileSetpointResultFrame.sequence)
+        {
+            if (frame.payload[3] == ACK_OK)
+                m_profileSetpointResultPending = false;
+            else
+                m_lastProfileSetpointResultTxMs = now - PROFILE_RESULT_RETRY_MS;
+        }
         if (frame.length == 4 && m_diagnosticPending &&
             frame.payload[0] == static_cast<uint8_t>(BoosterUart::Type::DCC_DIAGNOSTIC) &&
             static_cast<uint16_t>(frame.payload[1] |
@@ -284,6 +365,30 @@ void BoosterUartLink::queueTimingResult(uint16_t transaction, uint8_t result,
     response.payload[4] = static_cast<uint8_t>(saved0);
     m_timingResultPending = true;
     m_lastTimingResultTxMs = millis() - DIAGNOSTIC_RETRY_MS;
+}
+
+void BoosterUartLink::queueProfileSetpointResult(uint16_t transaction,
+                                                  uint8_t result)
+{
+    BoosterUart::Frame &response = m_pendingProfileSetpointResultFrame;
+    response = BoosterUart::Frame{};
+    response.type = static_cast<uint8_t>(
+        BoosterUart::Type::PROFILE_SETPOINT_RESULT);
+    response.sequence = m_txSequence++;
+    response.length = 3;
+    response.payload[0] = static_cast<uint8_t>(transaction & 0xFFU);
+    response.payload[1] = static_cast<uint8_t>(transaction >> 8);
+    response.payload[2] = result;
+    m_profileSetpointResultPending = true;
+    m_lastProfileSetpointResultTxMs = millis() - PROFILE_RESULT_RETRY_MS;
+}
+
+void BoosterUartLink::sendPendingProfileSetpointResult(uint32_t nowMs)
+{
+    if (m_profileSetpointResultPending &&
+        nowMs - m_lastProfileSetpointResultTxMs >= PROFILE_RESULT_RETRY_MS &&
+        sendFrame(m_pendingProfileSetpointResultFrame))
+        m_lastProfileSetpointResultTxMs = nowMs;
 }
 
 void BoosterUartLink::sendAck(
