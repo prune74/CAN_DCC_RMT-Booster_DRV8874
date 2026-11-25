@@ -35,6 +35,7 @@ void BoosterCore::begin()
     }
     regen.begin();
     drv.begin();
+    analogSetPinAttenuation(PIN_RAIL_VOLTAGE, ADC_11db);
     railcom.begin();
     canRx.begin();
     tensionControl.begin();
@@ -448,6 +449,30 @@ void BoosterCore::sampleSensors()
 {
     telemetry.current_mA = drv.readCurrent_mA();
     telemetry.voltage_mV = drv.readSupplyVoltage_mV();
+
+    const uint32_t now = millis();
+    if (now - lastRailVoltageSampleMs < CFG_RAIL_VOLTAGE_SAMPLE_PERIOD_MS)
+        return;
+    lastRailVoltageSampleMs = now;
+
+    if (!powerEnabled || !drv.isEnabled()) {
+        telemetry.railVoltage_mV = 0;
+        telemetry.railVoltageValid = false;
+        return;
+    }
+
+    const uint32_t adcMilliVolts = analogReadMilliVolts(PIN_RAIL_VOLTAGE);
+    const int32_t measuredMilliVolts = static_cast<int32_t>(
+        adcMilliVolts * CFG_RAIL_VOLTAGE_DIVIDER_RATIO + 0.5f) +
+        CFG_RAIL_VOLTAGE_CORRECTION_MV;
+    if (measuredMilliVolts < 0 || measuredMilliVolts >= 0xFFFF) {
+        telemetry.railVoltage_mV = 0;
+        telemetry.railVoltageValid = false;
+        return;
+    }
+
+    telemetry.railVoltage_mV = static_cast<uint16_t>(measuredMilliVolts);
+    telemetry.railVoltageValid = CFG_RAIL_VOLTAGE_CALIBRATED;
 }
 
 const BoosterTelemetry &BoosterCore::getTelemetry() const { return telemetry; }

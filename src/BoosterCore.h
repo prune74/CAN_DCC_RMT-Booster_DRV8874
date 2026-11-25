@@ -85,6 +85,7 @@ private:
     bool trackProfileHo = false;
     uint8_t assignedBoosterId = CFG_CANTON_ID_UNASSIGNED;
     uint32_t discoveryPermitMs = 0;
+    uint32_t lastRailVoltageSampleMs = 0;
     bool discoveryPermit = false;
     bool associationValidated = false;
     uint32_t localFaultSinceMs = 0;

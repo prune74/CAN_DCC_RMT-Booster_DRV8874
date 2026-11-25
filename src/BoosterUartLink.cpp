@@ -22,6 +22,7 @@ void BoosterUartLink::begin()
 {
     Serial1.begin(UART_BAUD, SERIAL_8N1, PIN_UART_RX, PIN_UART_TX);
     m_lastSampleUs = micros();
+    m_lastRailVoltageTxMs = millis();
 }
 
 void BoosterUartLink::update(BoosterCore &booster)
@@ -47,6 +48,9 @@ void BoosterUartLink::update(BoosterCore &booster)
     }
 
     sendRailCom(booster);
+    if (heartbeatValid && booster.hasBoosterId() &&
+        nowMs - m_lastRailVoltageTxMs >= CFG_RAIL_VOLTAGE_TELEMETRY_PERIOD_MS)
+        sendRailVoltage(booster);
     updateDccDiagnostic(booster, nowMs);
     sendPendingTimingResult(nowMs);
     sendPendingProfileSetpointResult(nowMs);
@@ -475,6 +479,21 @@ void BoosterUartLink::sendSample(BoosterCore &booster)
     frame.payload[6] = static_cast<uint8_t>(
         dccAlive && booster.isPowerEnabled() && telemetry.state == BoosterState::OK);
     sendFrame(frame);
+}
+
+void BoosterUartLink::sendRailVoltage(const BoosterCore &booster)
+{
+    const BoosterTelemetry &telemetry = booster.getTelemetry();
+    BoosterUart::Frame frame;
+    frame.type = static_cast<uint8_t>(BoosterUart::Type::BOOSTER_RAIL_VOLTAGE);
+    frame.sequence = m_txSequence++;
+    frame.length = 3;
+    frame.payload[0] = static_cast<uint8_t>(telemetry.railVoltage_mV & 0xFFU);
+    frame.payload[1] = static_cast<uint8_t>(telemetry.railVoltage_mV >> 8);
+    frame.payload[2] = telemetry.railVoltageValid
+        ? cfc::dcc::BOOSTER_RAIL_VOLTAGE_VALID
+        : cfc::dcc::BOOSTER_RAIL_VOLTAGE_INVALID;
+    if (sendFrame(frame)) m_lastRailVoltageTxMs = millis();
 }
 
 void BoosterUartLink::sendRailCom(const BoosterCore &booster)

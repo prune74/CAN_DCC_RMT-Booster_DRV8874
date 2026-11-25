@@ -15,6 +15,7 @@ private:
     void sendAck(uint8_t command, uint16_t commandSequence, uint8_t status);
     bool sendFrame(const BoosterUart::Frame &frame);
     void sendSample(BoosterCore &booster);
+    void sendRailVoltage(const BoosterCore &booster);
     void sendRailCom(const BoosterCore &booster);
     void updateDccDiagnostic(const BoosterCore &booster, uint32_t nowMs);
     void sendPendingDccDiagnostic(uint32_t nowMs);
@@ -28,6 +29,7 @@ private:
     uint16_t m_txSequence = 0;
     uint32_t m_lastHeartbeatMs = 0;
     uint32_t m_lastSampleUs = 0;
+    uint32_t m_lastRailVoltageTxMs = 0;
     uint16_t m_lastRailcomAddress = 0;
     BoosterUart::Frame m_pendingDiagnosticFrame{};
     BoosterUart::Frame m_pendingTimingResultFrame{};

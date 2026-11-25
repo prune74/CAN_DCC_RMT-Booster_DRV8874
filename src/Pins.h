@@ -19,6 +19,7 @@ static const int PIN_DRV_IN2     = 33;    // même signal, inversé via matrice 
 static const int PIN_DRV_NSLEEP = 27;     // Veille driver (1 = actif)
 static const int PIN_DRV_IPROPI = 34;     // ADC IPROPI (courant voie) via R 3,6 kΩ → GND
 static const int PIN_SUPPLY_SENSE = 35;  // ADC: sortie alimentation, pas la voie après DRV8874
+static const int PIN_RAIL_VOLTAGE = 39;  // ADC: tension des rails après DRV8874 (pont + diviseur)
 static const int PIN_DCC_CAPTURE = 25;   // Entrée logique isolée; capture à définir (RMT RX à étudier)
 
 // --- RailCom (sortie logique isolée du front-end carte) ---
@@ -32,6 +33,6 @@ static const int RMT_WS2812_CHANNEL = 7;  // Défaut Ws2812Universal
 static const int PIN_WS2812   = 26;   // Strip 3 LED (comme convertisseur)
 static const int WS2812_COUNT = 3;
 
-// --- Digipot (MCP4551/4561) ---
+// --- Digipot MCP45HV51 ---
 static const int PIN_I2C_SDA = 21;   // I2C SDA
 static const int PIN_I2C_SCL = 22;   // I2C SCL

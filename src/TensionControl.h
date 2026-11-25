@@ -5,12 +5,11 @@
 #include "Config.h"
 
 // ============================================================
-// TensionControl — Gestion du digipot pour profil de voie
-// (MCP4551 / MCP4561 sur bus I2C)
+// TensionControl — gestion du MCP45HV51-103 sur bus I2C.
 //
 // Permet de commuter entre deux profils de tension voie :
-//   - HO : 15V (échelle HO) → DIGIPOT_HO
-//   - N  : 12V (échelle N)  → DIGIPOT_N
+//   - HO : consigne nominale 15 V → code de départ configurable
+//   - N  : consigne nominale 12 V → code de départ configurable
 //
 // La commande CAN envoie simplement HO ou N, les valeurs sont
 // fixes dans Config.h et ne changent pas.
@@ -23,4 +22,5 @@ public:
 
 private:
     bool writeDigipot(uint8_t value) noexcept;
+    bool readDigipot(uint8_t &value) noexcept;
 };
