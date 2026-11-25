@@ -1,6 +1,6 @@
 # CAN_DCC_RMT-Booster_DRV8874
 
-> Suivi : [fiche Booster](../../Suivi/Cartes/SUIVI_BOOSTER_DRV8874.md) · [avancement général](../../Suivi/ETAT_AVANCEMENT.md)
+> Suivi : [fiche Booster](../../Suivi/Cartes/Liaison_DCC/Booster_DRV8874/SUIVI_BOOSTER_DRV8874.md) · [avancement général](../../Suivi/ETAT_AVANCEMENT.md)
 
 Firmware ESP32 du booster de voie DRV8874. Il régénère localement le signal
 DCC reçu du convertisseur, commande le pont en H, applique le profil transmis
@@ -57,9 +57,25 @@ redémarrage. L’échange CAN/UART réel reste à valider avec les cartes conne
 ## Mesures et limites actuelles
 
 Le capteur IPROPI mesure le courant du booster. GPIO35 mesure l’alimentation
-du DRV8874, pas la tension différentielle sur les rails après le pont en H.
-La mesure de tension de voie et son éventuelle calibration automatique ne sont
-pas implémentées.
+du DRV8874. GPIO39 mesure séparément la tension différentielle des rails après
+le pont en H, via le pont BAS4002A-RPP, le filtre/diviseur et la protection
+BAS40-04 retenus dans le chantier matériel. Le firmware applique le facteur
+nominal 11 et une correction configurée à 0 mV; la mesure reste déclarée
+invalide tant que `CFG_RAIL_VOLTAGE_CALIBRATED` n’est pas activé après
+étalonnage réel. La lecture est faite toutes les 250 ms lorsque la sortie du
+booster est active.
+
+La tension mesurée est transmise une fois par seconde par UART `0x19` à
+l’EXCC. L’EXCC la relaie au CC par CAN Commands `0xDD`; le CC la publie à
+l’ERM Liaison DCC par CAN Service `0xC7`. La page de l’ERM affiche la valeur,
+la consigne appliquée et confirmée, l’écart, son état et son âge. Un écart
+supérieur à ±0,5 V est signalé par l’ERM sans régler ni couper le Booster.
+Aucun message de mesure n’est ajouté au CAN Booster.
+
+Le réglage du XL4015 utilise le MCP45HV51-103 (10 kΩ), boîtier TSSOP-14,
+adresse I²C `0x3D` et brochage identiques à LaBox. Les deux cartes sont
+distinctes; l’identité d’adresse ne crée donc pas de collision entre leurs
+bus I²C. La correction et la calibration restent à effectuer sur matériel.
 
 Le convertisseur transmet le cutout observé à l’entrée dans l’enregistrement
 `0x100`; le Booster utilise cette durée pour sa fenêtre de coupure/capture
@@ -83,6 +99,7 @@ version 2, un numéro de séquence et un CRC-16/CCITT-FALSE.
 | `0x10` | Booster → EXCC | Mesures et état |
 | `0x11` | Booster → EXCC | Événement RailCom |
 | `0x12` | Booster → EXCC | Diagnostic DCC |
+| `0x19` | Booster → EXCC | Tension des rails en mV (uint16 little-endian) et validité |
 | `0x15` | EXCC → Booster | Autorisation d’annonce `0x101`, fraîcheur 1 500 ms |
 | `0x16` | EXCC → Booster | Validation d’association `0xC4`, ACK corrélé |
 | `0x17` | EXCC → Booster | Effacement explicite de l’ID persistant, ACK requis |
