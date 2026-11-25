@@ -1,6 +1,6 @@
 # CAN_DCC_RMT-Booster_DRV8874
 
-> Suivi : [fiche Booster](../../Suivi/Cartes/Liaison_DCC/Booster_DRV8874/SUIVI_BOOSTER_DRV8874.md) · [avancement général](../../Suivi/ETAT_AVANCEMENT.md)
+> Suivi : [fiche Booster](../../Suivi/Cartes/Liaison_DCC/Booster_DRV8874/SUIVI_BOOSTER_DRV8874.md) · [plan d’audit de la chaîne ERM–CC–EXCC–Booster](../../Suivi/Chantiers/CantonController/CC_EXCC/PLAN_AUDIT_CHAINE_ERM_CC_EXCC_BOOSTER.md) · [avancement général](../../Suivi/ETAT_AVANCEMENT.md)
 
 Firmware ESP32 du booster de voie DRV8874. Il régénère localement le signal
 DCC reçu du convertisseur, commande le pont en H, applique le profil transmis
