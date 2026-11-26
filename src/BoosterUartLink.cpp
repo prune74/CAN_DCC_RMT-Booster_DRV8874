@@ -124,7 +124,7 @@ void BoosterUartLink::handleFrame(
     case BoosterUart::Type::BOOSTER_ASSOCIATION_VALIDATE:
         if (frame.length != 8 || frame.payload[0] != 1 ||
             (frame.payload[1] == 0 && frame.payload[2] == 0) ||
-            frame.payload[3] < 1 || frame.payload[3] > 252 ||
+            frame.payload[3] < 1 || frame.payload[3] > CFG_MAX_CANTON_ID ||
             frame.payload[4] != 0 || frame.payload[5] != 0 ||
             frame.payload[6] != 0 || frame.payload[7] != 0)
             sendAck(frame.type, frame.sequence, ACK_INVALID);

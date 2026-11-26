@@ -1,4 +1,5 @@
 #include "CanBooster.h"
+#include "Config.h"
 #include <CanUniversal.h>
 #include <CfcDccProtocol.h>
 
@@ -25,7 +26,7 @@ void CanBooster::poll() {
 
 bool CanBooster::announceDiscoveryId(uint8_t boosterId)
 {
-    if (!bus || !bus->isValid() || boosterId == 0 || boosterId > 252)
+    if (!bus || !bus->isValid() || boosterId == 0 || boosterId > CFG_MAX_CANTON_ID)
         return false;
     CanMsg msg(static_cast<uint16_t>(cfc::dcc::CAN_BOOSTER_DISCOVERY_ID),
                {cfc::dcc::BOOSTER_DISCOVERY_FORMAT_VERSION, boosterId, 0, 0, 0, 0, 0, 0});

@@ -9,7 +9,7 @@
 // ======================================================================================
 
 // --- Identité reçue du CC via l'EXCC ---
-static constexpr uint8_t CFG_MAX_CANTON_ID = 252;
+static constexpr uint8_t CFG_MAX_CANTON_ID = 250;
 static constexpr uint8_t CFG_CANTON_ID_UNASSIGNED = 0xFF;
 
 // --- Bus CAN (identique au convertisseur) ---
