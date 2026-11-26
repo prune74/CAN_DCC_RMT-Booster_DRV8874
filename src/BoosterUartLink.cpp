@@ -151,8 +151,10 @@ void BoosterUartLink::handleFrame(
             sendAck(frame.type, frame.sequence, ACK_NO_HEARTBEAT);
         else
         {
-            booster.clearBoosterId();
-            sendAck(frame.type, frame.sequence, ACK_OK);
+            if (booster.clearBoosterId())
+                sendAck(frame.type, frame.sequence, ACK_OK);
+            else
+                sendAck(frame.type, frame.sequence, ACK_INVALID);
         }
         break;
 

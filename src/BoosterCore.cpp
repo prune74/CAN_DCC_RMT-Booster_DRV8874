@@ -102,30 +102,36 @@ bool BoosterCore::setBoosterId(uint8_t id)
     if (!hasBoosterId() || assignedBoosterId != id)
     {
         setPowerEnabled(false);
+        // ACK_OK seulement après une écriture durable réussie; en cas
+        // d'échec, la sortie reste coupée et l'ID n'est pas confirmé.
+        Preferences preferences;
+        if (!preferences.begin("cfc-booster", false))
+            return false;
+        const size_t written = preferences.putUChar("canton", id);
+        preferences.end();
+        if (written != sizeof(uint8_t))
+            return false;
         assignedBoosterId = id;
         associationValidated = false;
-        Preferences preferences;
-        if (preferences.begin("cfc-booster", false))
-        {
-            preferences.putUChar("canton", id);
-            preferences.end();
-        }
     }
     return true;
 }
 
-void BoosterCore::clearBoosterId()
+bool BoosterCore::clearBoosterId()
 {
     setPowerEnabled(false);
+    Preferences preferences;
+    if (!preferences.begin("cfc-booster", false))
+        return false;
+    const size_t removed =
+        preferences.isKey("canton") ? preferences.remove("canton") : 1;
+    preferences.end();
+    if (removed == 0)
+        return false;
     assignedBoosterId = CFG_CANTON_ID_UNASSIGNED;
     associationValidated = false;
     discoveryPermit = false;
-    Preferences preferences;
-    if (preferences.begin("cfc-booster", false))
-    {
-        preferences.remove("canton");
-        preferences.end();
-    }
+    return true;
 }
 
 void BoosterCore::setDiscoveryPermit(bool enabled)

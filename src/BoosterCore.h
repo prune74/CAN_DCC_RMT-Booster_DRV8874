@@ -26,7 +26,7 @@ public:
     void sampleSensors();
     void setPowerEnabled(bool enabled);
     bool setBoosterId(uint8_t id);
-    void clearBoosterId();
+    bool clearBoosterId();
     void setDiscoveryPermit(bool enabled);
     bool hasFreshDiscoveryPermit() const;
     bool shouldAnnounceDiscoveryId() const;
